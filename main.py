@@ -43,17 +43,18 @@ class Document:
 
 
 class Slide:
-	def __init__(self, name, shapes=None):
+	def __init__(self, name, shapes=None, timeline=None):
 		self.name = name
 		self.shapes = shapes or []
+		self.timeline = timeline or Timeline()
 
 	def save(self, path):
 		with open(f"{path}/ppt/slides/_rels/{self.name}.xml.rels", "w") as fin:
 			fin.write("""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
 <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/>
-</Relationships>
-""")
+</Relationships>""")
+
 		with open(f"{path}/ppt/slides/{self.name}.xml", "w") as fin:
 			fin.write("""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
@@ -71,14 +72,15 @@ class Slide:
 					<a:chOff y="0" x="0"/>
 					<a:chExt cy="0" cx="0"/>
 				</a:xfrm>
-			</p:grpSpPr>"""+"".join(shape.save() for shape in self.shapes)+"""
+			</p:grpSpPr>"""+"".join(shape.save() for shape in self.shapes)+f"""
 		</p:spTree>
 	</p:cSld>
 	<p:clrMapOvr>
 		<a:masterClrMapping/>
 	</p:clrMapOvr>
-</p:sld>
-""")
+	{self.timeline.save()}
+</p:sld>""")
+
 
 SCALE = 100000
 class Shape:
@@ -125,8 +127,7 @@ class Shape:
 						<a:srgbClr val="{self.color}"/>
 					</a:solidFill>
 				</p:spPr>
-			</p:sp>
-"""
+			</p:sp>"""
 
 
 class Group:
@@ -164,8 +165,218 @@ class Group:
 						<a:chExt cx="{cx}" cy="{cy}"/>
 					</a:xfrm>
 				</p:grpSpPr>"""+"\n".join(shape.save() for shape in self.shapes)+"""
-			</p:grpSp>
-"""
+			</p:grpSp>"""
+
+
+class Animation:
+	id = 0
+	def reset_id():
+		Animation.id = 0
+	def get_id():
+		Animation.id += 1
+		return Animation.id
+
+	CLICK_EFFECT = "clickEffect"
+	WITH_EFFECT  = "withEffect"
+	AFTER_EFFECT = "afterEffect"
+
+	ENTR = "entr"
+	EMPH = "emph"
+	EXIT = "exit"
+
+	def __init__(self, shape, preset, id, delay, click):
+		self.target = shape.id
+		self.preset = preset
+		self.id = id
+		self.delay = int(delay*1000)
+		self.click = click
+
+	def save(self):
+		return f"""
+						<p:par>
+							<p:cTn id="{Animation.get_id()}" nodeType="{Animation.CLICK_EFFECT if self.click else Animation.WITH_EFFECT}" fill="hold" presetSubtype="0" presetClass="{self.preset}" presetID="{self.id}">
+								<p:stCondLst>
+									<p:cond delay="{self.delay}"/>
+								</p:stCondLst>
+								<p:childTnLst>
+									{self.spec()}
+								</p:childTnLst>
+							</p:cTn>
+						</p:par>"""
+
+	def spec(self):
+		raise NotImplementedError
+
+
+class Appear(Animation):
+	def __init__(self, shape, delay=0, click=True):
+		super().__init__(shape, Animation.ENTR, 1, delay, click)
+
+	def spec(self):
+		return f"""
+									<p:set>
+										<p:cBhvr>
+											<p:cTn id="{Animation.get_id()}" dur="1" fill="hold">
+												<p:stCondLst>
+													<p:cond delay="0"/>
+												</p:stCondLst>
+											</p:cTn>
+											<p:tgtEl>
+												<p:spTgt spid="{self.target}"/>
+											</p:tgtEl>
+											<p:attrNameLst>
+												<p:attrName>style.visibility</p:attrName>
+											</p:attrNameLst>
+										</p:cBhvr>
+										<p:to>
+											<p:strVal val="visible"/>
+										</p:to>
+									</p:set>"""
+
+
+class Disappear(Animation):
+	def __init__(self, shape, delay=0, click=True):
+		super().__init__(shape, Animation.EXIT, 1, delay, click)
+
+	def spec(self):
+		return f"""
+									<p:set>
+										<p:cBhvr>
+											<p:cTn id="{Animation.get_id()}" dur="1" fill="hold">
+												<p:stCondLst>
+													<p:cond delay="0"/>
+												</p:stCondLst>
+											</p:cTn>
+											<p:tgtEl>
+												<p:spTgt spid="{self.target}"/>
+											</p:tgtEl>
+											<p:attrNameLst>
+												<p:attrName>style.visibility</p:attrName>
+											</p:attrNameLst>
+										</p:cBhvr>
+										<p:to>
+											<p:strVal val="hidden"/>
+										</p:to>
+									</p:set>"""
+
+
+class Timeline:
+	def __init__(self, *animations):
+		self.contexts = {"main":animations}
+
+	def add(self, *animations, on=None):
+		if on is None:
+			self.contexts["main"].extend(animations)
+		elif on in self.contexts:
+			self.contexts[on.id].extend(animations)
+		else:
+			self.contexts[on.id] = animations
+
+	def save_context(self, context):
+		seq_id = Animation.get_id()
+		result = """
+					<p:seq nextAc="seek" concurrent="1">"""
+		if context == "main":
+			result += f"""
+						<p:cTn id="{seq_id}" nodeType="mainSeq" dur="indefinite">
+							<p:childTnLst>"""
+		else:
+			result += f"""
+						<p:cTn id="{seq_id}" nodeType="interactiveSeq" restart="whenNotActive" fill="hold" evtFilter="cancelBubble">
+							<p:stCondLst>
+								<p:cond delay="0" evt="onClick">
+									<p:tgtEl>
+										<p:spTgt spid="{context}"/>
+									</p:tgtEl>
+								</p:cond>
+							</p:stCondLst>
+							<p:endSync delay="0" evt="end">
+								<p:rtn val="all"/>
+							</p:endSync>
+							<p:childTnLst>"""
+		if not self.contexts[context]:
+			result += f"""
+								<p:par>
+									<p:cTn id="{Animation.get_id()}"/>
+								</p:par>"""
+		else:
+			def add_group(result, group):
+				return result + f"""
+								<p:par>
+									<p:cTn id="{Animation.get_id()}" fill="hold">
+										<p:stCondLst>
+											<p:cond delay="indefinite"/>
+											{"" if group[0].click else f'<p:cond delay="0" evt="onBegin"><p:tn val="{seq_id}"/></p:cond>'}
+										</p:stCondLst>
+										<p:childTnLst>
+
+											<p:par>
+												<p:cTn id="{Animation.get_id()}" fill="hold">
+													<p:stCondLst>
+														<p:cond delay="0"/>
+													</p:stCondLst>
+													<p:childTnLst>"""+"".join(animation.save() for animation in group)+"""
+													</p:childTnLst>
+												</p:cTn>
+											</p:par>
+
+										</p:childTnLst>
+									</p:cTn>
+								</p:par>"""
+			group = [self.contexts[context][0]]
+			for animation in self.contexts[context][1:]:
+				if not animation.click:
+					group.append(animation)
+				else:
+					result = add_group(result, group)
+					group = [animation]
+			result = add_group(result, group)
+		if context == "main":
+			result += """
+							</p:childTnLst>
+						</p:cTn>
+						<p:prevCondLst>
+							<p:cond delay="0" evt="onPrev">
+								<p:tgtEl>
+									<p:sldTgt/>
+								</p:tgtEl>
+							</p:cond>
+						</p:prevCondLst>
+						<p:nextCondLst>
+							<p:cond delay="0" evt="onNext">
+								<p:tgtEl>
+									<p:sldTgt/>
+								</p:tgtEl>
+							</p:cond>
+						</p:nextCondLst>
+					</p:seq>"""
+		else:
+			result += f"""
+							</p:childTnLst>
+						</p:cTn>
+						<p:nextCondLst>
+							<p:cond delay="0" evt="onClick">
+								<p:tgtEl>
+									<p:spTgt spid="{context}"/>
+								</p:tgtEl>
+							</p:cond>
+						</p:nextCondLst>
+					</p:seq>"""
+		return result
+
+	def save(self):
+		Animation.reset_id()
+		return f"""
+	<p:timing>
+		<p:tnLst>
+			<p:par>
+				<p:cTn id="{Animation.get_id()}" nodeType="tmRoot" restart="never" dur="indefinite">
+					<p:childTnLst>"""+"".join(self.save_context(context) for context in self.contexts)+"""
+					</p:childTnLst>
+				</p:cTn>
+			</p:par>
+		</p:tnLst>
+	</p:timing>"""
 
 
 rect1 = Shape(10, 10, 10, 10, "FF0000")
@@ -174,7 +385,10 @@ rect3 = Shape(30, 30, 10, 10, "0000FF")
 rect4 = Shape(40, 40, 10, 10, "FFFF00")
 grp1 = Group(rect1, rect2)
 grp2 = Group(grp1, rect3)
+tl = Timeline(Appear(rect4, 0, False), Disappear(rect4, 1, False), Appear(rect4, 0.5), Disappear(rect4, 0.25, False))
+tl.add(Appear(rect4, 0, False), Disappear(rect4, 1, False), Appear(rect4, 0.5), Disappear(rect4, 0.25, False), on=grp2)
+tl.add(Appear(rect4, 0, True), Disappear(rect4, 1, False), Appear(rect4, 0.5), Disappear(rect4, 0.25, False), on=rect4)
 slide1 = Slide("slide1")
-slide2 = Slide("slide2", [grp2, rect4])
+slide2 = Slide("slide2", [grp2, rect4], tl)
 doc = Document("src", [slide1, slide2])
 doc.save()
