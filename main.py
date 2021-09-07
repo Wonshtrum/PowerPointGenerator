@@ -80,14 +80,30 @@ class Slide:
 </p:sld>
 """)
 
-
+SCALE = 100000
 class Shape:
 	id = 10
-	def __init__(self, name, color):
+	def get_id():
+		Shape.id += 1
+		return Shape.id
+
+	def __init__(self, x, y, cx, cy, color="000000", name="shape"):
 		self.name = name
 		self.color = color
-		self.id = Shape.id
-		Shape.id += 1
+		self.x = x*SCALE
+		self.y = y*SCALE
+		self.cx = cx*SCALE
+		self.cy = cy*SCALE
+		self.id = Shape.get_id()
+
+	def get_x(self):
+		return self.x
+	def get_y(self):
+		return self.y
+	def get_cx(self):
+		return self.cx
+	def get_cy(self):
+		return self.cy
 
 	def save(self):
 		return f"""
@@ -99,8 +115,8 @@ class Shape:
 				</p:nvSpPr>
 				<p:spPr>
 					<a:xfrm>
-						<a:off y="2381250" x="3467100"/>
-						<a:ext cy="914400" cx="914400"/>
+						<a:off x="{self.x}" y="{self.y}"/>
+						<a:ext cx="{self.cx}" cy="{self.cy}"/>
 					</a:xfrm>
 					<a:prstGeom prst="rect">
 						<a:avLst/>
@@ -113,9 +129,52 @@ class Shape:
 """
 
 
-rect1 = Shape("test1", "00FF00")
-rect2 = Shape("test1", "0000FF")
+class Group:
+	def __init__(self, *shapes, name="group"):
+		self.name = name
+		self.shapes = shapes
+		self.id = Shape.get_id()
+
+	def get_x(self):
+		return min(shape.get_x() for shape in self.shapes)
+	def get_y(self):
+		return min(shape.get_y() for shape in self.shapes)
+	def get_cx(self):
+		return max(shape.get_x()+shape.get_cx() for shape in self.shapes)-self.get_x()
+	def get_cy(self):
+		return max(shape.get_y()+shape.get_cy() for shape in self.shapes)-self.get_y()
+
+	def save(self):
+		x = self.get_x()
+		y = self.get_y()
+		cx = self.get_cx()
+		cy = self.get_cy()
+		return f"""
+			<p:grpSp>
+				<p:nvGrpSpPr>
+					<p:cNvPr name="{self.name}" id="{self.id}"/>
+					<p:cNvGrpSpPr/>
+					<p:nvPr/>
+				</p:nvGrpSpPr>
+				<p:grpSpPr>
+					<a:xfrm>
+						<a:off x="{x}" y="{y}"/>
+						<a:ext cx="{cx}" cy="{cy}"/>
+						<a:chOff x="{x}" y="{y}"/>
+						<a:chExt cx="{cx}" cy="{cy}"/>
+					</a:xfrm>
+				</p:grpSpPr>"""+"\n".join(shape.save() for shape in self.shapes)+"""
+			</p:grpSp>
+"""
+
+
+rect1 = Shape(10, 10, 10, 10, "FF0000")
+rect2 = Shape(20, 20, 10, 10, "00FF00")
+rect3 = Shape(30, 30, 10, 10, "0000FF")
+rect4 = Shape(40, 40, 10, 10, "FFFF00")
+grp1 = Group(rect1, rect2)
+grp2 = Group(grp1, rect3)
 slide1 = Slide("slide1")
-slide2 = Slide("slide2", [rect1, rect2])
+slide2 = Slide("slide2", [grp2, rect4])
 doc = Document("src", [slide1, slide2])
 doc.save()
