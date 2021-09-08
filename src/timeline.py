@@ -12,10 +12,10 @@ class Timeline:
 	def add(self, *animations, on=None):
 		if on is None:
 			self.contexts["main"].extend(animations)
-		elif on in self.contexts:
+		elif on.id in self.contexts:
 			self.contexts[on.id].extend(animations)
 		else:
-			self.contexts[on.id] = animations
+			self.contexts[on.id] = list(animations)
 
 	def save_context(self, context):
 		seq_id = Timeline.get_id()

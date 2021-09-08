@@ -93,6 +93,14 @@ class Slide:
 </p:sld>""")
 
 
+def scale_on_demand(f):
+	def wrapper(self, scale=False):
+		if scale:
+			return f(self)/Document.SCALE
+		return f(self)
+	return wrapper
+
+
 class Shape:
 	id = 10
 	def get_id():
@@ -102,18 +110,22 @@ class Shape:
 	def __init__(self, x, y, cx, cy, color="000000", name="shape"):
 		self.name = name
 		self.color = color
-		self.x = x*Document.SCALE
-		self.y = y*Document.SCALE
-		self.cx = cx*Document.SCALE
-		self.cy = cy*Document.SCALE
+		self.x = int(x*Document.SCALE)
+		self.y = int(y*Document.SCALE)
+		self.cx = int(cx*Document.SCALE)
+		self.cy = int(cy*Document.SCALE)
 		self.id = Shape.get_id()
 
+	@scale_on_demand
 	def get_x(self):
 		return self.x
+	@scale_on_demand
 	def get_y(self):
 		return self.y
+	@scale_on_demand
 	def get_cx(self):
 		return self.cx
+	@scale_on_demand
 	def get_cy(self):
 		return self.cy
 
@@ -146,12 +158,16 @@ class Group:
 		self.shapes = shapes
 		self.id = Shape.get_id()
 
+	@scale_on_demand
 	def get_x(self):
 		return min(shape.get_x() for shape in self.shapes)
+	@scale_on_demand
 	def get_y(self):
 		return min(shape.get_y() for shape in self.shapes)
+	@scale_on_demand
 	def get_cx(self):
 		return max(shape.get_x()+shape.get_cx() for shape in self.shapes)-self.get_x()
+	@scale_on_demand
 	def get_cy(self):
 		return max(shape.get_y()+shape.get_cy() for shape in self.shapes)-self.get_y()
 

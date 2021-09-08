@@ -12,6 +12,8 @@ class Animation:
 	PATH = "path"
 	EXIT = "exit"
 
+	MIN_TIME = 0.01
+
 	UP         = 0
 	UP_RIGHT   = 1
 	RIGHT      = 2
