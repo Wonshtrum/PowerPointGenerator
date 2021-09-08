@@ -7,7 +7,7 @@ class Timeline:
 		return Timeline.id
 
 	def __init__(self, *animations):
-		self.contexts = {"main":animations}
+		self.contexts = {"main":list(animations)}
 
 	def add(self, *animations, on=None):
 		if on is None:

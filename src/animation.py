@@ -12,19 +12,30 @@ class Animation:
 	PATH = "path"
 	EXIT = "exit"
 
-	def __init__(self, shape, preset, id, delay, dur, repeat, click):
+	UP         = 0
+	UP_RIGHT   = 1
+	RIGHT      = 2
+	DOWN_RIGHT = 3
+	DOWN       = 4
+	DOWN_LEFT  = 5
+	LEFT       = 6
+	UP_LEFT    = 7
+	DIRECTIONS = list(range(8))
+
+	def __init__(self, shape, preset, preset_id, preset_subtype, dur, delay, repeat, click):
 		self.target = shape.id
 		self.preset = preset
-		self.id = id
-		self.delay = int(delay*1000)
+		self.preset_id = preset_id
+		self.preset_subtype = preset_subtype
 		self.dur = max(1, int(dur*1000))
+		self.delay = int(delay*1000)
 		self.repeat = int(repeat*1000)
 		self.click = click
 
 	def save(self):
 		return f"""
 						<p:par>
-							<p:cTn id="{Timeline.get_id()}" nodeType="{Animation.CLICK_EFFECT if self.click else Animation.WITH_EFFECT}" presetClass="{self.preset}" presetID="{self.id}" repeatCount="{self.repeat}" fill="hold" presetSubtype="0">
+							<p:cTn id="{Timeline.get_id()}" nodeType="{Animation.CLICK_EFFECT if self.click else Animation.WITH_EFFECT}" presetClass="{self.preset}" presetID="{self.preset_id}" presetSubtype="{self.preset_subtype}" {f'repeatCount="{self.repeat}" ' if self.repeat!=1000 else ""}fill="hold">
 								<p:stCondLst>
 									<p:cond delay="{self.delay}"/>
 								</p:stCondLst>
@@ -58,10 +69,36 @@ class Animation:
 										</p:to>
 									</p:set>"""
 
+	def spec_anim(self, attribute, value1, value2):
+		return f"""
+									<p:anim valueType="num" calcmode="lin">
+										<p:cBhvr additive="base">
+											<p:cTn id="{Timeline.get_id()}" dur="{self.dur}" fill="hold"/>
+											<p:tgtEl>
+												<p:spTgt spid="{self.target}"/>
+											</p:tgtEl>
+											<p:attrNameLst>
+												<p:attrName>{attribute}</p:attrName>
+											</p:attrNameLst>
+										</p:cBhvr>
+										<p:tavLst>
+											<p:tav tm="0">
+												<p:val>
+													<p:strVal val="{value1}"/>
+												</p:val>
+											</p:tav>
+											<p:tav tm="100000">
+												<p:val>
+													<p:strVal val="{value2}"/>
+												</p:val>
+											</p:tav>
+										</p:tavLst>
+									</p:anim>"""
+
 
 class Appear(Animation):
 	def __init__(self, shape, delay=0, click=True):
-		super().__init__(shape, Animation.ENTR, 1, delay, 0, 1, click)
+		super().__init__(shape, Animation.ENTR, 1, 0, 0, delay, 1, click)
 
 	def spec(self):
 		return self.spec_set("style.visibility", "visible")
@@ -69,15 +106,61 @@ class Appear(Animation):
 
 class Disappear(Animation):
 	def __init__(self, shape, delay=0, click=True):
-		super().__init__(shape, Animation.EXIT, 1, delay, 0, 1, click)
+		super().__init__(shape, Animation.EXIT, 1, 0, 0, delay, 1, click)
 
 	def spec(self):
 		return self.spec_set("style.visibility", "hidden")
 
 
+class SlideIn(Animation):
+	DIRECTIONS = {
+		Animation.UP         : ( 4, "#ppt_x",     "1+#ppt_h/2"),
+		Animation.UP_RIGHT   : (12, "0-#ppt_w/2", "1+#ppt_h/2"),
+		Animation.RIGHT      : ( 8, "0-#ppt_w/2", "#ppt_y"),
+		Animation.DOWN_RIGHT : ( 9, "0-#ppt_w/2", "0-#ppt_h/2"),
+		Animation.DOWN       : ( 1, "#ppt_x",     "0-#ppt_h/2"),
+		Animation.DOWN_LEFT  : ( 3, "1+#ppt_w/2", "0-#ppt_h/2"),
+		Animation.LEFT       : ( 2, "1+#ppt_w/2", "#ppt_y"),
+		Animation.UP_LEFT    : ( 6, "1+#ppt_w/2", "1+#ppt_h/2")
+	}
+
+	def __init__(self, shape, dir, dur=0, delay=0, repeat=1, click=True):
+		preset_subtype, _, _ = SlideIn.DIRECTIONS[dir]
+		super().__init__(shape, Animation.ENTR, 2, preset_subtype, dur, delay, repeat, click)
+		self.dir = dir
+
+	def spec(self):
+		_, x, y = SlideIn.DIRECTIONS[self.dir]
+		return (self.spec_set("style.visibility", "visible")+
+			self.spec_anim("ppt_x", x, "#ppt_x")+
+			self.spec_anim("ppt_y", y, "#ppt_y"))
+
+class SlideOut(Animation):
+	DIRECTIONS = {
+		Animation.DOWN       : ( 4, "ppt_x",     "1+ppt_h/2"),
+		Animation.DOWN_LEFT  : (12, "0-ppt_w/2", "1+ppt_h/2"),
+		Animation.LEFT       : ( 8, "0-ppt_w/2", "ppt_y"),
+		Animation.UP_LEFT    : ( 9, "0-ppt_w/2", "0-ppt_h/2"),
+		Animation.UP         : ( 1, "ppt_x",     "0-ppt_h/2"),
+		Animation.UP_RIGHT   : ( 3, "1+ppt_w/2", "0-ppt_h/2"),
+		Animation.RIGHT      : ( 2, "1+ppt_w/2", "ppt_y"),
+		Animation.DOWN_RIGHT : ( 6, "1+ppt_w/2", "1+ppt_h/2")
+	}
+
+	def __init__(self, shape, dir, dur=0, delay=0, repeat=1, click=True):
+		preset_subtype, _, _ = SlideOut.DIRECTIONS[dir]
+		super().__init__(shape, Animation.EXIT, 2, preset_subtype, dur, delay, repeat, click)
+		self.dir = dir
+
+	def spec(self):
+		_, x, y = SlideOut.DIRECTIONS[self.dir]
+		return (self.spec_set("style.visibility", "hidden", False)+
+			self.spec_anim("ppt_x", "ppt_x", x)+
+			self.spec_anim("ppt_y", "ppt_y", y))
+
 class Path(Animation):
 	def __init__(self, shape, path, dur=0, delay=0, repeat=1, click=True, relative=False, centered=False):
-		super().__init__(shape, Animation.PATH, 0, delay, dur, repeat, click)
+		super().__init__(shape, Animation.PATH, 0, 1, dur, delay, repeat, click)
 		self.shape = shape
 		self.path = path
 		self.centered = centered
@@ -109,5 +192,4 @@ class Path(Animation):
 												<p:attrName>ppt_y</p:attrName>
 											</p:attrNameLst>
 										</p:cBhvr>
-										<p:rCtr y="21875" x="12292"/>
 									</p:animMotion>"""
