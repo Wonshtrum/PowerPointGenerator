@@ -1,4 +1,14 @@
+SCALE = 100000
+
+
 class Document:
+	# 1cm = 360 000
+	HEIGHT = 6858000
+	WIDTH = 12192000
+
+	def relative_pos(x, y):
+		return x/Document.WIDTH, y/Document.HEIGHT
+
 	def __init__(self, path, slides=None):
 		self.path = path
 		self.slides = slides or []
@@ -30,9 +40,9 @@ class Document:
 	</p:sldMasterIdLst>
 	<p:sldIdLst>"""+"\n\t\t".join(
 		f'<p:sldId id="{i+256}" r:id="rId{i+2}"/>'
-		for i in range(n))+"""
+		for i in range(n))+f"""
 	</p:sldIdLst>
-	<p:sldSz cx="12192000" cy="6858000"/>
+	<p:sldSz cx="{Document.WIDTH}" cy="{Document.HEIGHT}"/>
 	<p:notesSz cx="6858000" cy="9144000"/>
 	<p:defaultTextStyle>
 		<a:defPPr>
@@ -82,7 +92,6 @@ class Slide:
 </p:sld>""")
 
 
-SCALE = 100000
 class Shape:
 	id = 10
 	def get_id():
@@ -182,13 +191,15 @@ class Animation:
 
 	ENTR = "entr"
 	EMPH = "emph"
+	PATH = "path"
 	EXIT = "exit"
 
-	def __init__(self, shape, preset, id, delay, click):
+	def __init__(self, shape, preset, id, delay, dur, click):
 		self.target = shape.id
 		self.preset = preset
 		self.id = id
 		self.delay = int(delay*1000)
+		self.dur = max(1, int(dur*1000))
 		self.click = click
 
 	def save(self):
@@ -210,7 +221,7 @@ class Animation:
 
 class Appear(Animation):
 	def __init__(self, shape, delay=0, click=True):
-		super().__init__(shape, Animation.ENTR, 1, delay, click)
+		super().__init__(shape, Animation.ENTR, 1, delay, 0, click)
 
 	def spec(self):
 		return f"""
@@ -236,7 +247,7 @@ class Appear(Animation):
 
 class Disappear(Animation):
 	def __init__(self, shape, delay=0, click=True):
-		super().__init__(shape, Animation.EXIT, 1, delay, click)
+		super().__init__(shape, Animation.EXIT, 1, delay, 0, click)
 
 	def spec(self):
 		return f"""
@@ -259,6 +270,43 @@ class Disappear(Animation):
 										</p:to>
 									</p:set>"""
 
+
+class Path(Animation):
+	def __init__(self, shape, path, dur=0, delay=0, click=True, relative=False, centered=False):
+		super().__init__(shape, Animation.PATH, 0, delay, dur, click)
+		self.shape = shape
+		self.path = path
+		self.centered = centered
+		self.relative = relative
+
+	def svg_path(self):
+		if self.relative:
+			ox = 0
+			oy = 0
+		else:
+			ox = -self.shape.get_x()
+			oy = -self.shape.get_y()
+		if self.centered:
+			ox -= self.shape.get_cx()/2
+			oy -= self.shape.get_cy()/2
+		path = [Document.relative_pos(x*SCALE+ox, y*SCALE+oy) for x, y in self.path]
+		return f"M {path[0][0]} {path[0][1]} "+" ".join(f"L {pos[0]} {pos[1]}" for i,pos in enumerate(path[1:]))
+
+	def spec(self):
+		return f"""
+									<p:animMotion ptsTypes="{"A"*len(self.path)}" rAng="0" pathEditMode="fixed" path="{self.svg_path()}" origin="layout">
+										<p:cBhvr>
+											<p:cTn id="{Animation.get_id()}" dur="{self.dur}" fill="hold"/>
+											<p:tgtEl>
+												<p:spTgt spid="{self.target}"/>
+											</p:tgtEl>
+											<p:attrNameLst>
+												<p:attrName>ppt_x</p:attrName>
+												<p:attrName>ppt_y</p:attrName>
+											</p:attrNameLst>
+										</p:cBhvr>
+										<p:rCtr y="21875" x="12292"/>
+									</p:animMotion>"""
 
 class Timeline:
 	def __init__(self, *animations):
@@ -385,9 +433,10 @@ rect3 = Shape(30, 30, 10, 10, "0000FF")
 rect4 = Shape(40, 40, 10, 10, "FFFF00")
 grp1 = Group(rect1, rect2)
 grp2 = Group(grp1, rect3)
-tl = Timeline(Appear(rect4, 0, False), Disappear(rect4, 1, False), Appear(rect4, 0.5), Disappear(rect4, 0.25, False))
-tl.add(Appear(rect4, 0, False), Disappear(rect4, 1, False), Appear(rect4, 0.5), Disappear(rect4, 0.25, False), on=grp2)
-tl.add(Appear(rect4, 0, True), Disappear(rect4, 1, False), Appear(rect4, 0.5), Disappear(rect4, 0.25, False), on=rect4)
+p = [(0,0), (20,0), (20,20), (0,20)]
+tl = Timeline(Appear(rect4, 0, False), Disappear(rect4, 1, False), Appear(rect4, 0.5), Path(rect4, p, 0.2))
+tl.add(Appear(rect4, 0, False), Disappear(rect4, 1, False), Appear(rect4, 0.5), Path(rect4, p, 0.5, relative=True), on=grp2)
+tl.add(Appear(rect4, 0, True), Disappear(rect4, 1, False), Appear(rect4, 0.5), Path(rect4, p, 1, relative=True, centered=True), on=rect4)
 slide1 = Slide("slide1")
 slide2 = Slide("slide2", [grp2, rect4], tl)
 doc = Document("src", [slide1, slide2])
