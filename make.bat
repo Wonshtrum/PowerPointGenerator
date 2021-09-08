@@ -1,6 +1,6 @@
 del main.pptx
-rmdir /q /s src
-xcopy base\ src\ /E
-del /S src\*.empty
-py main.py
-"C:Program Files\WinRAR\WinRAR.exe" a -afzip -r -ep1 main.pptx src\*
+rmdir /q /s out
+xcopy base\ out\ /E
+del /S out\*.empty
+py src\main.py
+"C:Program Files\WinRAR\WinRAR.exe" a -afzip -r -ep1 main.pptx out\*
