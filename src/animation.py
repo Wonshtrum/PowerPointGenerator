@@ -97,6 +97,17 @@ class Animation:
 										</p:tavLst>
 									</p:anim>"""
 
+	def spec_anim_effect(self, filter, transition):
+		return f"""
+									<p:animEffect filter="{filter}" transition="{transition}">
+										<p:cBhvr>
+											<p:cTn id="{Timeline.get_id()}" dur="{self.dur}"/>
+												<p:tgtEl>
+													<p:spTgt spid="{self.target}"/>
+												</p:tgtEl>
+											</p:cBhvr>
+									</p:animEffect>"""
+
 
 class Appear(Animation):
 	def __init__(self, shape, delay=0, click=False):
@@ -114,6 +125,24 @@ class Disappear(Animation):
 		return self.spec_set("style.visibility", "hidden")
 
 
+class FadeIn(Animation):
+	def __init__(self, shape, dur=Animation.MIN_TIME, delay=0, repeat=1, click=False):
+		super().__init__(shape, Animation.ENTR, 10, 0, dur, delay, repeat, click)
+
+	def spec(self):
+		return (self.spec_set("style.visibility", "visible")+
+			self.spec_anim_effect("fade", "in"))
+
+
+class FadeOut(Animation):
+	def __init__(self, shape, dur=Animation.MIN_TIME, delay=0, repeat=1, click=False):
+		super().__init__(shape, Animation.EXIT, 10, 0, dur, delay, repeat, click)
+
+	def spec(self):
+		return (self.spec_set("style.visibility", "hidden", False)+
+			self.spec_anim_effect("fade", "out"))
+
+
 class SlideIn(Animation):
 	DIRECTIONS = {
 		Animation.UP         : ( 4, "#ppt_x",     "1+#ppt_h/2"),
@@ -126,7 +155,7 @@ class SlideIn(Animation):
 		Animation.UP_LEFT    : ( 6, "1+#ppt_w/2", "1+#ppt_h/2")
 	}
 
-	def __init__(self, shape, dir, dur=0, delay=0, repeat=1, click=False):
+	def __init__(self, shape, dir, dur=Animation.MIN_TIME, delay=0, repeat=1, click=False):
 		preset_subtype, _, _ = SlideIn.DIRECTIONS[dir]
 		super().__init__(shape, Animation.ENTR, 2, preset_subtype, dur, delay, repeat, click)
 		self.dir = dir
@@ -136,6 +165,7 @@ class SlideIn(Animation):
 		return (self.spec_set("style.visibility", "visible")+
 			self.spec_anim("ppt_x", x, "#ppt_x")+
 			self.spec_anim("ppt_y", y, "#ppt_y"))
+
 
 class SlideOut(Animation):
 	DIRECTIONS = {
@@ -149,7 +179,7 @@ class SlideOut(Animation):
 		Animation.DOWN_RIGHT : ( 6, "1+ppt_w/2", "1+ppt_h/2")
 	}
 
-	def __init__(self, shape, dir, dur=0, delay=0, repeat=1, click=False):
+	def __init__(self, shape, dir, dur=Animation.MIN_TIME, delay=0, repeat=1, click=False):
 		preset_subtype, _, _ = SlideOut.DIRECTIONS[dir]
 		super().__init__(shape, Animation.EXIT, 2, preset_subtype, dur, delay, repeat, click)
 		self.dir = dir
@@ -160,8 +190,9 @@ class SlideOut(Animation):
 			self.spec_anim("ppt_x", "ppt_x", x)+
 			self.spec_anim("ppt_y", "ppt_y", y))
 
+
 class Path(Animation):
-	def __init__(self, shape, path, dur=0, delay=0, repeat=1, click=False, relative=False, centered=False):
+	def __init__(self, shape, path, dur=Animation.MIN_TIME, delay=0, repeat=1, click=False, relative=False, centered=False):
 		super().__init__(shape, Animation.PATH, 0, 1, dur, delay, repeat, click)
 		self.shape = shape
 		self.path = path

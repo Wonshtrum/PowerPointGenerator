@@ -106,7 +106,13 @@ class Shape:
 		Shape.id += 1
 		return Shape.id
 
-	def __init__(self, x, y, cx, cy, color="000000", name="shape"):
+	cache = []
+	def dump():
+		cache = Shape.cache
+		Shape.cache = []
+		return cache
+
+	def __init__(self, x, y, cx, cy, color="000000", name="shape", ignore=False):
 		self.name = name
 		self.color = color
 		self.x = int(x*Document.SCALE)
@@ -114,6 +120,8 @@ class Shape:
 		self.cx = int(cx*Document.SCALE)
 		self.cy = int(cy*Document.SCALE)
 		self.id = Shape.get_id()
+		if not ignore:
+			Shape.cache.append(self)
 
 	@scale_on_demand
 	def get_x(self):
