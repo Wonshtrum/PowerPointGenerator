@@ -82,7 +82,7 @@ class Slide:
 					<a:chOff y="0" x="0"/>
 					<a:chExt cy="0" cx="0"/>
 				</a:xfrm>
-			</p:grpSpPr>"""+"".join(shape.save() for shape in self.shapes)+f"""
+			</p:grpSpPr>"""+"".join(shape.save() for shape in reversed(sorted(self.shapes, key=lambda shape:shape.z)))+f"""
 		</p:spTree>
 	</p:cSld>
 	<p:clrMapOvr>
@@ -112,9 +112,13 @@ class Shape:
 		Shape.cache = []
 		return cache
 
-	def __init__(self, x, y, cx, cy, color="000000", name="shape", ignore=False):
+	def __init__(self, x, y, cx, cy, color="000000", name="shape", ignore=False, z=0):
 		self.name = name
-		self.color = color
+		self.z = z
+		if isinstance(color, str):
+			self.color = color
+		else:
+			self.color = f"{int(color[0]):02x}{int(color[1]):02x}{int(color[2]):02x}"
 		self.x = int(x*Document.SCALE)
 		self.y = int(y*Document.SCALE)
 		self.cx = int(cx*Document.SCALE)
@@ -137,6 +141,7 @@ class Shape:
 		return self.cy
 
 	def save(self):
+		print(self.z)
 		return f"""
 			<p:sp>
 				<p:nvSpPr>
@@ -160,10 +165,16 @@ class Shape:
 
 
 class Group:
-	def __init__(self, *shapes, name="group"):
+	def __init__(self, *shapes, name="group", ignore=False, z=0):
 		self.name = name
+		self.z = z
 		self.shapes = shapes
 		self.id = Shape.get_id()
+		if not ignore:
+			for shape in shapes:
+				if shape in Shape.cache:
+					Shape.cache.remove(shape)
+			Shape.cache.append(self)
 
 	@scale_on_demand
 	def get_x(self):

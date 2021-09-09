@@ -192,7 +192,7 @@ class SlideOut(Animation):
 
 
 class Path(Animation):
-	def __init__(self, shape, path, dur=Animation.MIN_TIME, delay=0, repeat=1, click=False, relative=False, centered=False):
+	def __init__(self, shape, path, dur=Animation.MIN_TIME, delay=0, repeat=1, click=False, relative=True, centered=False):
 		super().__init__(shape, Animation.PATH, 0, 1, dur, delay, repeat, click)
 		self.shape = shape
 		self.path = path
@@ -226,3 +226,8 @@ class Path(Animation):
 											</p:attrNameLst>
 										</p:cBhvr>
 									</p:animMotion>"""
+
+
+class Place(Path):
+	def __init__(self, shape, position, dur=Animation.MIN_TIME, delay=0, click=False, relative=True, centered=False):
+		super().__init__(shape, [position, position], dur, delay, 1, click, relative, centered)
