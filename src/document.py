@@ -1,11 +1,19 @@
 from timeline import Timeline
 
 
+def write(stream, content):
+	if Document.COMPRESS:
+		stream.write(content.replace("\t", "").replace("\n", ""))
+	else:
+		stream.write(content)
+
+
 class Document:
 	# 1cm = 360 000
 	HEIGHT = 6858000
-	WIDTH = 12192000
-	SCALE = 100000
+	WIDTH  = 12192000
+	SCALE  = 100000
+	COMPRESS = True
 
 	def relative_pos(x, y):
 		return x/Document.WIDTH, y/Document.HEIGHT
@@ -19,8 +27,8 @@ class Document:
 		for slide in self.slides:
 			slide.save(self.path)
 
-		with open(f"{self.path}/ppt/_rels/presentation.xml.rels", "w") as fin:
-			fin.write("""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+		with open(f"{self.path}/ppt/_rels/presentation.xml.rels", "w") as stream:
+			write(stream, """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
 	<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="slideMasters/slideMaster1.xml"/>
 	"""+"\n\t".join(
@@ -32,8 +40,8 @@ class Document:
 	<Relationship Id="rId{n+5}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/tableStyles" Target="tableStyles.xml"/>
 </Relationships>""")
 
-		with open(f"{self.path}/ppt/presentation.xml", "w") as fin:
-			fin.write("""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+		with open(f"{self.path}/ppt/presentation.xml", "w") as stream:
+			write(stream, """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <p:presentation xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" saveSubsetFonts="1">
 	<p:sldMasterIdLst>
 		<p:sldMasterId id="2147483648" r:id="rId1"/>
@@ -59,14 +67,14 @@ class Slide:
 		self.timeline = timeline or Timeline()
 
 	def save(self, path):
-		with open(f"{path}/ppt/slides/_rels/{self.name}.xml.rels", "w") as fin:
-			fin.write("""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+		with open(f"{path}/ppt/slides/_rels/{self.name}.xml.rels", "w") as stream:
+			write(stream, """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
 <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/>
 </Relationships>""")
 
-		with open(f"{path}/ppt/slides/{self.name}.xml", "w") as fin:
-			fin.write("""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+		with open(f"{path}/ppt/slides/{self.name}.xml", "w") as stream:
+			write(stream, """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
 	<p:cSld>
 		<p:spTree>
@@ -141,7 +149,6 @@ class Shape:
 		return self.cy
 
 	def save(self):
-		print(self.z)
 		return f"""
 			<p:sp>
 				<p:nvSpPr>

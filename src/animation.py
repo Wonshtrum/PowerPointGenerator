@@ -229,5 +229,5 @@ class Path(Animation):
 
 
 class Place(Path):
-	def __init__(self, shape, position, dur=Animation.MIN_TIME, delay=0, click=False, relative=True, centered=False):
+	def __init__(self, shape, position=(0, 0), dur=Animation.MIN_TIME, delay=0, click=False, relative=True, centered=False):
 		super().__init__(shape, [position, position], dur, delay, 1, click, relative, centered)
