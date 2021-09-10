@@ -31,19 +31,21 @@ class Cell:
 tl = Timeline()
 nb_symbols = 4
 nb_states = 4
-nb_cells = 16
+nb_cells = 24
 cells = []
 readers = []
 writers = []
+Y = 10
+W = 3
 
 
-w  = 3
-w2 = 1
-ox = 20
-oy = 20
-master = Shape(ox, oy-w*2-w2-2, nb_cells*(w+1)-1, w, (255, 0, 0), z=-2)
-read_enable = Shape(ox, oy+(nb_symbols-1)*(w+w2+1)-w2, nb_cells*(w+1)-1, w2, (255, 0, 0), z=2*nb_symbols+1)
-left_enable = Shape(ox, oy+nb_symbols*(w+w2+1)-w2, nb_cells*(w+1)-1, w2, (0, 255, 0), z=2*nb_symbols+2)
+w  = W
+ox = 10
+oy = Y
+master = Shape(0, oy, w, w, (255, 0, 0), z=-2)
+cursor = Shape(ox, oy, w, w, (255, 0, 0), z=-2)
+read_enable = Shape(0, oy, w, w, (255, 0, 0), z=2*nb_symbols+1)
+left_enable = Shape(0, oy, w, w, (0, 255, 0), z=2*nb_symbols+2)
 tl.add(Disappear(master), on=master)
 tl.add(Disappear(read_enable), on=read_enable)
 tl.add(Disappear(left_enable), on=left_enable)
@@ -51,41 +53,40 @@ tl.add(Appear(read_enable), on=master)
 tl.add(Appear(left_enable), on=master)
 
 for i in reversed(range(nb_symbols)):
-	s = Shape(ox, oy+(nb_symbols+1)*(w+w2+1)-w2+(w2+1)*i, nb_cells*(w+1)-1, w2, (255, 255, 0), z=2*nb_symbols+4+i)
+	s = Shape(0, oy, w, w, (255, 255, 0), z=2*nb_symbols+5+i)
 	readers.append(s)
 	for reader in readers:
 		tl.add(Disappear(reader), on=s)
 	tl.add(Appear(reader), on=read_enable)
-	tl.add(Appear(master), on=s)
 
 for i in range(nb_symbols-1):
-	s = Shape(ox, oy+i*(w+w2+1)-w2, nb_cells*(w+1)-1, w2, (0, 255, 0), z=i*2)
+	s = Shape(0, oy, w, w, (0, 255, 0), z=i*2)
 	tl.add(Appear(s), on=master)
 	tl.add(Disappear(s), on=s)
 	writers.append(s)
 
+x = 50
+y = Document.HEIGHT/Document.SCALE-w
 for i in range(nb_cells):
-	cell = Cell()
-	cell.reset = Shape(ox+i*(w+1), oy-w-w2-1, w, w, (255, 0, 255), z=-1)
-	cell.cycle = Shape(ox+i*(w+1), oy+(nb_symbols-1)*(w+w2+1), w, w, (0, 255, 255), z=2*nb_symbols+2)
 	dx = ox+i*(w+1)
 	dy = w
-	x  = 50
-	y  = Document.HEIGHT/Document.SCALE-w
-	r1 = Shape(ox+i*(w+1)+(w-1)/2+1, oy+nb_symbols*(w+w2+1), (w-1)/2, w)
+	cell = Cell()
+	cell.reset = Shape(dx, oy, w, w, (255, 0, 255, 1), z=-1)
+	cell.cycle = Shape(dx, oy, w, w, (0, 255, 255), z=2*nb_symbols)
+	r1 = Shape(dx, oy+w, w, w)
 	r2 = Shape(x+w+1+dx, y+dy, w, w)
-	l1 = Shape(ox+i*(w+1), oy+nb_symbols*(w+w2+1), (w-1)/2, w)
+	l1 = Shape(dx, oy+w, w, w)
 	l2 = Shape(x+dx, y+dy, w, w)
-	cell.right = Group(r1, r2, z=3*nb_symbols+4)
-	cell.left  = Group(l1, l2, z=3*nb_symbols+5)
-
+	cell.right = Group(r1, r2, z=2*nb_symbols+3)
+	cell.left  = Group(l1, l2, z=2*nb_symbols+4)
 
 	for j in range(nb_symbols-1):
-		s = Shape(ox+i*(w+1), oy+j*(w+w2+1), w, w, (0, (j+1)*255/nb_symbols, (j+1)*255/nb_symbols), z=j*2+1)
+		s = Shape(dx, oy, w, w, (0, (j+1)*255/nb_symbols, (j+1)*255/nb_symbols), z=j*2+1)
 		tl.add(Disappear(s), on=s)
 		tl.add(Place(s), on=writers[j])
 		tl.add(Disappear(readers[j+1]), on=s)
 		cell.symbols.append(s)
+	cosmetic = Shape(dx, oy, w, w, (0, 255, 255), z=2*nb_symbols+1)	
 
 	for s in cell.symbols:
 		tl.add(Appear(s), on=cell.reset)
@@ -102,6 +103,8 @@ for i in range(nb_cells):
 	tl.add(Appear(master), on=cell.left)
 	tl.add(Disappear(cell.reset), on=cell.reset)
 	tl.add(Disappear(cell.right), on=left_enable)
+	tl.add(Place(cursor, (((i+1)%nb_cells)*(w+1), 0)), on=cell.right)
+	tl.add(Place(cursor, (((i-1)%nb_cells)*(w+1), 0)), on=cell.left)
 
 	cells.append(cell)
 
@@ -114,16 +117,16 @@ for i, cell in enumerate(cells):
 
 	dx = right.get_x()
 	for s in right.elements():
-		tl.add(Place(s, (-dx, -w)), on=cell.right)
+		tl.add(Place(s, (0, Y), relative=False), on=cell.right)
 	dx = left.get_x()
 	for s in left.elements():
-		tl.add(Place(s, (-dx, -w)), on=cell.left)
+		tl.add(Place(s, (0, Y), relative=False), on=cell.left)
 
 first = cells[0]
 dx = first.get_x()
 tl.add(Disappear(first.reset))
 for s in first.elements():
-	tl.add(Place(s, (-dx, -w)))
+	tl.add(Place(s, (0, Y), relative=False))
 
 
 w  = 4
@@ -172,31 +175,34 @@ tl.add(Place(left), on=left)
 tl.add(Place(right, (w/2, 0)), on=left)
 
 
-w  = 2
-ox = 90
-oy = 10
-dx = 0
-dy = 30
-Shape(ox-w, oy-w, (nb_states+2)*(w+1)-3, (nb_symbols+2)*(w+1)-3, (255, 0, 255))
+w  = W
+ox = 10+w
+oy = 40
+dx = -ox
+dy = Y-oy
+Shape(ox-w, oy-w, (nb_states+2)*(w+1)-3, (nb_symbols+2)*(w+1)-3, (255, 0, 255), z=3*nb_symbols+7)
 transitions = [[None]*nb_symbols for _ in range(nb_states)]
 for i in range(nb_states):
 	for j in range(nb_symbols):
 		t0 = Shape(ox+(w+1)*i, oy+(w+1)*j, w, w, (0, (j+1)*255/nb_symbols, (j+1)*255/nb_symbols))
 		t1 = Shape(ox-dx+(w+1)*i*2, oy-dy+(w+1)*j*2, w, w, (0, 0, 255))
-		transitions[i][j] = Group(t0, t1, z=-3)
+		transitions[i][j] = Group(t0, t1, z=3*nb_symbols+6)
 for i in range(nb_states):
 	for j in range(nb_symbols):
 		s = transitions[i][j]
 		tl.add(FadeOut(s, repeat=0.5), on=s)
 		tl.add(Appear(s), on=readers[j])
 		tl.add(Disappear(s), on=master)
+		tl.add(Appear(master), on=s)
 		for k, setter in enumerate(state_setters):
 			if k == i:
 				tl.add(Place(s, (dx-i*(w+1), dy-j*(w+1))), on=setter)
 			else:
 				tl.add(Place(s), on=setter)
-		for obj in iterate(writers, symbol_setters, state_setters, left_enable, left, right, *transitions):
+		for obj in iterate(symbol_setters, state_setters, left, right, *transitions):
 			tl.add(SlideOut(obj, Animation.RIGHT, repeat=0.001), on=s)
+		for obj in iterate(writers, left_enable):
+			tl.add(SlideOut(obj, Animation.LEFT, repeat=0.001), on=s)
 
 
 tl.add(Place(master, relative=False))

@@ -123,10 +123,13 @@ class Shape:
 	def __init__(self, x, y, cx, cy, color="000000", name="shape", ignore=False, z=0):
 		self.name = name
 		self.z = z
+		self.alpha = 0
 		if isinstance(color, str):
 			self.color = color
 		else:
 			self.color = f"{int(color[0]):02x}{int(color[1]):02x}{int(color[2]):02x}"
+			if len(color) == 4:
+				self.alpha = int(1000*color[3])
 		self.x = int(x*Document.SCALE)
 		self.y = int(y*Document.SCALE)
 		self.cx = int(cx*Document.SCALE)
@@ -165,7 +168,7 @@ class Shape:
 						<a:avLst/>
 					</a:prstGeom>
 					<a:solidFill>
-						<a:srgbClr val="{self.color}"/>
+						<a:srgbClr val="{self.color}"{"/>" if self.alpha==0 else f'><a:alpha val="{self.alpha}"/></a:srgbClr>'}
 					</a:solidFill>
 				</p:spPr>
 			</p:sp>"""
