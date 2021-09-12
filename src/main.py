@@ -180,7 +180,7 @@ ox = 10+w
 oy = 40
 dx = -ox
 dy = Y-oy
-Shape(ox-w, oy-w, (nb_states+2)*(w+1)-3, (nb_symbols+2)*(w+1)-3, (255, 0, 255), z=3*nb_symbols+7)
+Shape(ox-w, oy-w, (nb_states+2)*(w+1)-3, (nb_symbols+2)*(w+1)-3, Style((255, 0, 255, 50), (255, 0, 0, 75), 1), text=Text("LOL", (255, 255, 255, 50)), z=3*nb_symbols+7)
 transitions = [[None]*nb_symbols for _ in range(nb_states)]
 for i in range(nb_states):
 	for j in range(nb_symbols):
@@ -199,9 +199,9 @@ for i in range(nb_states):
 				tl.add(Place(s, (dx-i*(w+1), dy-j*(w+1))), on=setter)
 			else:
 				tl.add(Place(s), on=setter)
-		for obj in iterate(symbol_setters, state_setters, left, right, *transitions):
+		for obj in iterate(symbol_setters, state_setters, left, right):
 			tl.add(SlideOut(obj, Animation.RIGHT, repeat=0.001), on=s)
-		for obj in iterate(writers, left_enable):
+		for obj in iterate(writers, left_enable, *transitions):
 			tl.add(SlideOut(obj, Animation.LEFT, repeat=0.001), on=s)
 
 

@@ -100,6 +100,67 @@ class Slide:
 </p:sld>""")
 
 
+def wrap(obj, cls):
+	if obj is None:
+		return cls()
+	if isinstance(obj, cls):
+		return obj
+	return cls(obj)
+
+
+class Color:
+	def __init__(self, color=(0,0,0), alpha=0):
+		self.color = f"{int(color[0]):02x}{int(color[1]):02x}{int(color[2]):02x}"
+		if len(color) == 4:
+			alpha = color[3]
+		self.alpha = int(1000*alpha)
+
+	def save(self):
+		return f"""
+					<a:solidFill>
+						<a:srgbClr val="{self.color}"{"/>" if self.alpha==0 else f'><a:alpha val="{self.alpha}"/></a:srgbClr>'}
+					</a:solidFill>"""
+
+
+class Style:
+	def __init__(self, fill=None, outline=None, width=0):
+		self.fill = wrap(fill, Color)
+		self.outline = wrap(outline, Color)
+		self.width = width*Document.SCALE
+
+	def save(self):
+		result = self.fill.save()
+		if self.width != 0:
+			result += f"""
+					<a:ln w="{self.width}">{self.outline.save()}
+					</a:ln>"""
+		return result
+
+
+class Text:
+	def __init__(self, content=None, color=None, centerX=True, centerY=True):
+		self.content = content
+		self.color = wrap(color, Color)
+		self.centerX = centerX
+		self.centerY = centerY
+
+	def save(self):
+		if self.content is None:
+			return ""
+		return f"""
+					<p:txBody>
+						<a:bodyPr{' anchor="ctr"' if self.centerY else ""}/>
+						<a:lstStyle/>
+						<a:p>{'<a:pPr algn="ctr"/>' if self.centerX else ""}
+							<a:r>
+								<a:rPr>{self.color.save()}
+								</a:rPr>
+								<a:t>{self.content}</a:t>
+							</a:r>
+						</a:p>
+					</p:txBody>"""
+
+
 def scale_on_demand(f):
 	def wrapper(self, scale=False):
 		if scale:
@@ -120,16 +181,9 @@ class Shape:
 		Shape.cache = []
 		return cache
 
-	def __init__(self, x, y, cx, cy, color="000000", name="shape", ignore=False, z=0):
+	def __init__(self, x, y, cx, cy, style=None, text=None, name="shape", ignore=False, z=0):
 		self.name = name
 		self.z = z
-		self.alpha = 0
-		if isinstance(color, str):
-			self.color = color
-		else:
-			self.color = f"{int(color[0]):02x}{int(color[1]):02x}{int(color[2]):02x}"
-			if len(color) == 4:
-				self.alpha = int(1000*color[3])
 		self.x = int(x*Document.SCALE)
 		self.y = int(y*Document.SCALE)
 		self.cx = int(cx*Document.SCALE)
@@ -137,6 +191,8 @@ class Shape:
 		self.id = Shape.get_id()
 		if not ignore:
 			Shape.cache.append(self)
+		self.style = wrap(style, Style)
+		self.text = wrap(text, Text)
 
 	@scale_on_demand
 	def get_x(self):
@@ -166,11 +222,8 @@ class Shape:
 					</a:xfrm>
 					<a:prstGeom prst="rect">
 						<a:avLst/>
-					</a:prstGeom>
-					<a:solidFill>
-						<a:srgbClr val="{self.color}"{"/>" if self.alpha==0 else f'><a:alpha val="{self.alpha}"/></a:srgbClr>'}
-					</a:solidFill>
-				</p:spPr>
+					</a:prstGeom>{self.style.save()}
+				</p:spPr>{self.text.save()}
 			</p:sp>"""
 
 
