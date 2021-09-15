@@ -1,4 +1,5 @@
 from timeline import Timeline
+import codecs
 
 
 def write(stream, content):
@@ -6,6 +7,10 @@ def write(stream, content):
 		stream.write(content.replace("\t", "").replace("\n", ""))
 	else:
 		stream.write(content)
+
+
+def open(*args):
+	return codecs.open(*args, "utf-8-sig")
 
 
 class Document:
@@ -100,9 +105,11 @@ class Slide:
 </p:sld>""")
 
 
-def wrap(obj, cls):
+def wrap(obj, cls, default=None):
 	if obj is None:
-		return cls()
+		if default is None:
+			return cls()
+		return cls(default)
 	if isinstance(obj, cls):
 		return obj
 	return cls(obj)
@@ -123,9 +130,12 @@ class Color:
 
 
 class Style:
+	DEFAULT_FILL = (0, 0, 0)
+	DEFAULT_OUTLINE = (0, 0, 0)
+
 	def __init__(self, fill=None, outline=None, width=0):
-		self.fill = wrap(fill, Color)
-		self.outline = wrap(outline, Color)
+		self.fill = wrap(fill, Color, Style.DEFAULT_FILL)
+		self.outline = wrap(outline, Color, Style.DEFAULT_OUTLINE)
 		self.width = width*Document.SCALE
 
 	def save(self):
@@ -138,22 +148,30 @@ class Style:
 
 
 class Text:
-	def __init__(self, content=None, color=None, centerX=True, centerY=True):
+	DEFAULT_COLOR = (0, 0, 0)
+	DEFAULT_SIZE = 18
+
+	def __init__(self, content=None, color=None, size=None, centerX=True, centerY=True, top=0, bottom=0, right=0, left=0):
 		self.content = content
-		self.color = wrap(color, Color)
+		self.color = wrap(color, Color, Text.DEFAULT_COLOR)
+		self.size = int((size or Text.DEFAULT_SIZE)*100)
 		self.centerX = centerX
 		self.centerY = centerY
+		self.mt = int(top*Document.SCALE)
+		self.mb = int(bottom*Document.SCALE)
+		self.mr = int(right*Document.SCALE)
+		self.ml = int(left*Document.SCALE)
 
 	def save(self):
 		if self.content is None:
 			return ""
 		return f"""
 					<p:txBody>
-						<a:bodyPr{' anchor="ctr"' if self.centerY else ""}/>
+						<a:bodyPr bIns="{self.mb}" rIns="{self.mr}" tIns="{self.mt}" lIns="{self.ml}"{' anchor="ctr"' if self.centerY else ""}/>
 						<a:lstStyle/>
 						<a:p>{'<a:pPr algn="ctr"/>' if self.centerX else ""}
 							<a:r>
-								<a:rPr>{self.color.save()}
+								<a:rPr sz="{self.size}">{self.color.save()}
 								</a:rPr>
 								<a:t>{self.content}</a:t>
 							</a:r>
