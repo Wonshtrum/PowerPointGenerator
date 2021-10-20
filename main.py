@@ -1,5 +1,4 @@
-from document import *
-from animation import *
+from pptgen import *
 
 
 def iterate(*elements):
@@ -251,5 +250,5 @@ for cell in cells:
 
 shapes = Shape.dump()
 slide = Slide("turing_machine", shapes, tl)
-doc = Document("out", [slide])
+doc = Document("main", [slide])
 doc.save()

@@ -1,16 +1,5 @@
-from timeline import Timeline
-import codecs
-
-
-def write(stream, content):
-	if Document.COMPRESS:
-		stream.write(content.replace("\t", "").replace("\n", ""))
-	else:
-		stream.write(content)
-
-
-def open(*args):
-	return codecs.open(*args, "utf-8-sig")
+from .timeline import Timeline
+from .zipper import create_base
 
 
 class Document:
@@ -28,12 +17,14 @@ class Document:
 		self.slides = slides or []
 
 	def save(self):
+		output = create_base(f"{self.path}.pptx")
+
 		n = len(self.slides)
 		for slide in self.slides:
-			slide.save(self.path)
+			slide.save(output)
 
-		with open(f"{self.path}/ppt/_rels/presentation.xml.rels", "w") as stream:
-			write(stream, """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+		output.put_file("ppt/_rels/presentation.xml.rels",
+"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
 	<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="slideMasters/slideMaster1.xml"/>
 	"""+"\n\t".join(
@@ -43,10 +34,10 @@ class Document:
 	<Relationship Id="rId{n+3}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/viewProps" Target="viewProps.xml"/>
 	<Relationship Id="rId{n+4}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="theme/theme1.xml"/>
 	<Relationship Id="rId{n+5}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/tableStyles" Target="tableStyles.xml"/>
-</Relationships>""")
+</Relationships>""", compress=Document.COMPRESS)
 
-		with open(f"{self.path}/ppt/presentation.xml", "w") as stream:
-			write(stream, """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+		output.put_file("ppt/presentation.xml",
+"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <p:presentation xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" saveSubsetFonts="1">
 	<p:sldMasterIdLst>
 		<p:sldMasterId id="2147483648" r:id="rId1"/>
@@ -62,7 +53,9 @@ class Document:
 			<a:defRPr lang="fr-FR"/>
 		</a:defPPr>
 	</p:defaultTextStyle>
-</p:presentation>""")
+</p:presentation>""", compress=Document.COMPRESS)
+
+		output.close()
 
 
 class Slide:
@@ -71,15 +64,15 @@ class Slide:
 		self.shapes = shapes or []
 		self.timeline = timeline or Timeline()
 
-	def save(self, path):
-		with open(f"{path}/ppt/slides/_rels/{self.name}.xml.rels", "w") as stream:
-			write(stream, """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+	def save(self, output):
+		output.put_file(f"ppt/slides/_rels/{self.name}.xml.rels",
+"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
 <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/>
-</Relationships>""")
+</Relationships>""", compress=Document.COMPRESS)
 
-		with open(f"{path}/ppt/slides/{self.name}.xml", "w") as stream:
-			write(stream, """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+		output.put_file(f"ppt/slides/{self.name}.xml",
+"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
 	<p:cSld>
 		<p:spTree>
@@ -102,7 +95,7 @@ class Slide:
 		<a:masterClrMapping/>
 	</p:clrMapOvr>
 	{self.timeline.save()}
-</p:sld>""")
+</p:sld>""", compress=Document.COMPRESS)
 
 
 def wrap(obj, cls, default=None):

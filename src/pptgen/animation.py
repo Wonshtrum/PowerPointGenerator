@@ -1,5 +1,5 @@
-from document import Document
-from timeline import Timeline
+from .document import Document
+from .timeline import Timeline
 
 
 class Animation:
