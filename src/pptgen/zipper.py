@@ -6,14 +6,16 @@ import os
 
 
 class Zipper():
-	def __init__(self, output):
-		self.zipfile = zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED)
+	def __init__(self, output, compress_type=zipfile.ZIP_DEFLATED):
+		self.compress_type = compress_type
+		self.zipfile = zipfile.ZipFile(output, "w", compress_type)
 
 	def put_file(self, path, data, compress=False):
 		if compress:
-			data = data.replace("\t", "").replace("\n", "")
+			data = data.replace("\t", "").replace("\n", "").replace("  ", "")
 		date_time = time.localtime(time.time())[:6]
 		zinfo = zipfile.ZipInfo(path, date_time)
+		zinfo.compress_type = self.compress_type
 		self.zipfile.writestr(zinfo, data)
 
 	def close(self):
