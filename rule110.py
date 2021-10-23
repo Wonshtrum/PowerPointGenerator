@@ -17,68 +17,70 @@ class Cell:
 		tl.add(Appear(self.main), on=self.reset)
 		tl.add(Place(self.main), on=self.main)
 		if not last:
-			self.next = Shape(x, y-w*first, w, w, (255, 0, 0), z=z)
+			self.next = Shape(x, y, w, w, (255, 0, 0), z=z)
 			tl.add(Disappear(self.next), on=self.next)
 
 
-	def __iter__(self):
-		return iter((self.main, self.reset, self.next))
-
-
 tl = Timeline()
-n_columns = 5
-n_rows = 5
+n_columns = 20
+n_rows = 20
 n_group = 3
+n_m = 1<<n_group
 w = 2.5
 d = 0
+tx = 0
+ty = 20
+target = (tx, ty)
 
 
-matrix = [[Shape(x*(w+1), y*(w+1), w, w, text=Text(1<<(n_group-x-1), (255, 255, 255)), z=-1<<n_group) for x in range(n_group)] for y in range(n_group)]
+matrix = [[Shape(x*(w+1), y*(w+1), w, w, text=Text(1<<(n_group-x-1), (255, 255, 255)), z=-2-n_m) for x in range(n_group)] for y in range(n_group)]
 for _ in iterate(*matrix):
 	tl.add(Disappear(_), on=_)
 
-start = Shape(0, 20, w, w, (0, 255, 0), z=-1-1<<n_group)
-zero = Shape(0, 20, w, w, (120, 120, 120), z=-1<<n_group)
+
+stop = Shape(tx, ty, w, w, (0, 0, 255), z=2+n_rows)
+zero = Shape(tx, ty, w, w, (120, 120, 120), z=-1-n_m)
+start = Shape(tx, ty, w, w, (0, 255, 0), z=-4-n_m)
+call_in = [Shape(tx, ty, w, w, (255, 0, 255), z=-3-n_m) for _ in range(n_group)]
+call_out = [Shape(tx, ty, w, w, (255, 100, 255), z=-n_m) for _ in range(n_group)]
 tl.add(Disappear(start), on=start)
 tl.add(Disappear(zero), on=start)
 tl.add(Disappear(zero), on=zero)
+tl.add(Place(stop), on=stop)
+for _ in iterate(call_in, call_out):
+	tl.add(Disappear(_))
+	tl.add(Disappear(_), on=_)
+for i, o, line in zip(call_in, call_out, matrix):
+	tl.add(Appear(o), on=i)
+	for _ in line:
+		tl.add(Place(_, target, relative=False), on=i)
+		tl.add(SlideIn(_, Animation.DOWN), on=o)
+
 
 controlers = []
-for i in range(1<<n_group):
-	s0 = Shape((n_group+i+1)*(w+1), 0, w, w, (0, 0, 255), text=0)
-	s1 = Shape((n_group+i+1)*(w+1), 0, w, w, (0, 0, 255), text=1)
+for i in range(n_m):
+	s0 = Shape((n_group+i+1)*(w+1), 0, w, w, (255, 255, 255), text=0, z=-1-n_m)
+	s1 = Shape((n_group+i+1)*(w+1), 0, w, w, (255, 255, 255), text=1, z=-1-n_m)
 	_ = Shape((n_group+i+1)*(w+1), w, w, w)
 	controlers.append((s0, s1))
-	tl.add(Place(s0), on=s0)
 	tl.add(Disappear(s0), on=_)
 	tl.add(Appear(s0, click=True), on=_)
 	tl.add(Appear(zero), on=s0)
+	for j in range(n_group):
+		for k in range(n_group):
+			if not i & 1<<(n_group-k-1):
+				tl.add(Place(s0, target), on=matrix[j][k])
+				tl.add(Place(s1, target), on=matrix[j][k])
+for s in iterate(*controlers):
+	for _ in iterate(*controlers, start):
+		tl.add(Place(s), on=_)
+	for _ in call_in:
+		tl.add(Place(s, target, relative=False), on=_)
 
 
-states = []
-for y in range(n_group):
-	state = []
-	for x in range(1<<n_group):
-		s = Shape(0, 20, w, w, (255, 0, 255), text=x, z=-x)
-		state.append(s)
-		tl.add(Disappear(s))
-		tl.add(Place(controlers[x][0], (0, 20), relative=False), on=s)
-		for i in range(n_group):
-			if x & 1<<i:
-				tl.add(Disappear(s), on=matrix[y][n_group-i-1])
-	for i, s in enumerate(state):
-		for _ in state[:i+1]:
-			tl.add(Disappear(_), on=s)
-		for _ in matrix[y]:
-			tl.add(SlideIn(_, Animation.DOWN), on=s)
-	states.append(state)
-
-
-
-cells = [[None]*(n_rows) for _ in range(n_columns)]
 ox = Document.WIDTH/Document.SCALE-w
 oy = 10
-
+cells = [[None]*(n_rows) for _ in range(n_columns)]
 for y in range(n_rows):
 	for x in range(n_columns):
 		cells[x][y] = Cell(ox-x*(w+d), oy+y*(w+d), w, 1+n_rows-y, y==0, y==n_rows-1)
@@ -103,23 +105,17 @@ for y in range(n_rows):
 		if y < n_rows-1:
 			if x > 0:
 				tl.add(Appear(cells[x-1][y+1].reset), on=cell.next)
-				tl.add(Place(cells[x-1][y+1].reset, (0, 20), relative=False), on=cell.next)
-				for _ in matrix[x%n_group]:
-					tl.add(Place(_, (0, 20), relative=False), on=cell.next)
-				for _ in states[x%n_group]:
-					tl.add(Appear(_), on=cell.next)
+				tl.add(Place(cells[x-1][y+1].reset, target, relative=False), on=cell.next)
+				tl.add(Appear(call_in[x%n_group]), on=cell.next)
 			for _ in [cell.main, cell.next]:
-				tl.add(Place(_, (0, 20), relative=False), on=last)
+				tl.add(Place(_, target, relative=False), on=last)
 			last = cell.next
 
 	if y < n_rows-1:
 		tmp = Shape(ox-(x+1)*(w+d), oy+y*(w+d), w, w, (255, 255, 0), z=1+n_rows-y)
-		tl.add(Place(tmp, (0, 20), relative=False), on=last)
-		for _ in matrix[(x+i)%n_group]:
-			tl.add(Place(_, (0, 20), relative=False), on=tmp)
-		for _ in states[(x+i)%n_group]:
-			tl.add(Appear(_), on=tmp)
-		tl.add(Place(cells[x][y+1].reset, (0, 20), relative=False), on=tmp)
+		tl.add(Place(tmp, target, relative=False), on=last)
+		tl.add(Appear(call_in[(x+i)%n_group]), on=tmp)
+		tl.add(Place(cells[x][y+1].reset, target, relative=False), on=tmp)
 		tl.add(Appear(cells[x][y+1].reset), on=tmp)
 		tl.add(Place(tmp, click=True), on=tmp)
 		last = tmp
