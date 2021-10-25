@@ -250,5 +250,5 @@ for cell in cells:
 
 shapes = Shape.dump()
 slide = Slide("turing_machine", shapes, tl)
-doc = Document("main", [slide])
+doc = Document("turing_machine", [slide])
 doc.save()
