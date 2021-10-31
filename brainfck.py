@@ -1,6 +1,10 @@
 from pptgen import *
 
 
+class Object:
+	pass
+
+
 def iterate(*elements):
 	for element in elements:
 		try:
@@ -52,14 +56,13 @@ class Word:
 
 		self.inc = Shape(x+(i+1)*w*h, y+(i+1)*w*v, w, w, (0, 255, 0), text="I", z=-1)
 		self.dec = Shape(x+(i+2)*w*h, y+(i+2)*w*v, w, w, (255, 0, 0), text="D", z=-1)
-		self.reset = Shape(x+(i+2)*w*h, y+(i+2)*w*v, w, w, (120, 120, 120), text="R", z=-1)
-		self.left = Shape(x+(i+3)*w*h, y+(i+3)*w*v, w, w, (0, 0, 255), text="⯇", z=-2)
-		self.right = Shape(x+(i+3)*w*h, y+(i+3)*w*v, w, w, (0, 0, 255), text="⯈", z=-2)
+		self.left = Shape(x+(i+3)*w*h, y+(i+3)*w*v, w, w, (0, 0, 255), text="⯇", z=-1)
+		self.right = Shape(x+(i+3)*w*h, y+(i+3)*w*v, w, w, (0, 0, 255), text="⯈", z=-1)
+		self.reset = Shape(x+(i+4)*w*h, y+(i+4)*w*v, w, w, (120, 120, 120), text="R", z=-1)
 		tl.add(Place(self.reset), on=self.reset)
 		for control in self.get_controls():
 			tl.add(Place(control), on=self.left)
 			tl.add(Place(control), on=self.right)
-			tl.add(Disappear(control), on=control)
 
 		for bit in self.bits:
 			tl.add(Place(bit.next0), on=self.reset)
@@ -92,6 +95,10 @@ class Cell:
 				tl.add(Disappear(other), on=self.cycle)
 
 
+INC = 0
+DEC = 1
+LEFT = 2
+RIGHT = 3
 Word.DEFAULT_N_BITS = 4
 Text.DEFAULT_COLOR = (255, 255, 255)
 tl = Timeline()
@@ -108,15 +115,23 @@ n_words = 10
 
 ox = 0
 oy = 0
-controlers = []
-for i, symbol in enumerate("+-⯇⯈"):
-	s = Shape(ox+i*w, oy, w, w, (255, 0, 0), text=symbol)
-	controlers.append(s)
+controler = Object()
+controler.symbols = []
+controler.reset = Shape(ox, oy, w, w, (255, 0, 0), text="R", z=-2)
+tl.add(Place(controler.reset), on=controler.reset)
+for i, (symbol, name) in enumerate(zip("+-⯇⯈", ("INC", "DEC", "LEFT", "RIGHT"))):
+	s = Shape(ox+(i+1)*w, oy, w, w, (255, 0, 0), text=symbol, z=-2)
+	tl.add(Place(s), on=s)
+	setattr(controler, name, s)
+	controler.symbols.append(s)
 
 
 ox = 10
 oy = ty
 cells = [Cell(ox+x*w, oy, w) for x in range(n_cells)]
+for cell in cells:
+	for i in range(4):
+		tl.add(Target(controler.symbols[i]), on=cell.symbols[i])
 
 ox = 10
 oy = 10
@@ -124,9 +139,15 @@ words = [Word(ox+w*i, oy, w, False) for i in range(n_words)]
 for i, word in enumerate(words):
 	left = words[(i-1)%n_words]
 	right = words[(i+1)%n_words]
+	tl.add(Appear(word.inc), on=controler.INC)
+	tl.add(Appear(word.dec), on=controler.DEC)
+	tl.add(Appear(word.left), on=controler.LEFT)
+	tl.add(Appear(word.right), on=controler.RIGHT)
 	for control in word.get_controls():
 		tl.add(Target(control), on=right.left)
 		tl.add(Target(control), on=left.right)
+		tl.add(Target(controler.reset), on=control)
+		tl.add(Disappear(control), on=controler.reset)
 
 
 shapes = Shape.dump()
