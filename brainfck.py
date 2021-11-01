@@ -88,17 +88,51 @@ class Cell:
 	SYMBOLS = "+-⯇⯈[]"
 	def __init__(self, x, y, w):
 		self.cycle = Shape(x, y+w, w, w)
+		self.place = Shape(x, y+w*2, w, w, (0, 0, 255), z=2)
+		self.next = Shape(x, y+w*3, w, w, (255, 0, 255))
 		self.symbols = [Shape(x, y, w, w, text=symbol) for i, symbol in enumerate(Cell.SYMBOLS)]
+		self.stack = [(
+			Shape(x, y-w*(i+1), w/2, w, (255, 255*(i==n_stack-1), 255), text="▲"),
+			Shape(x+w/2, y-w*(i+1), w/2, w, (255, 255*(i==0), 255), text="▼")) for i in range(n_stack)]
+
 		for i, symbol in enumerate(self.symbols):
 			tl.add(Appear(symbol, click=True), on=self.cycle)
-			for other in self.symbols[:i]:
-				tl.add(Disappear(other), on=self.cycle)
+			tl.add(Target(symbol), on=self.place)
+			if i > 0:
+				tl.add(Disappear(self.symbols[i-1]), on=self.cycle)
+
+		for i, (up, down) in enumerate(self.stack):
+			if i < n_stack-1:
+				next_up, next_down = self.stack[i+1]
+				tl.add(Appear(next_up), on=up)
+				tl.add(Appear(next_down), on=up)
+				tl.add(Place(next_up), on=up)
+				tl.add(Place(next_down), on=up)
+				tl.add(Disappear(up), on=up)
+				tl.add(Disappear(down), on=up)
+			if i > 0:
+				prev_up, prev_down = self.stack[i-1]
+				tl.add(Appear(prev_up), on=down)
+				tl.add(Appear(prev_down), on=down)
+				tl.add(Place(prev_up), on=down)
+				tl.add(Place(prev_down), on=down)
+				tl.add(Disappear(up), on=down)
+				tl.add(Disappear(down), on=down)
+
+		tl.add(Target(self.stack[0][0]), on=self.symbols[PUSH])
+		tl.add(Target(self.next), on=self.stack[1][1])
+		tl.add(Target(self.place), on=self.next)
+
+		tl.add(Place(self.place), on=self.place)
+		tl.add(Place(self.next), on=self.next)
 
 
 INC = 0
 DEC = 1
 LEFT = 2
 RIGHT = 3
+PUSH = 4
+POP = 5
 Word.DEFAULT_N_BITS = 4
 Text.DEFAULT_COLOR = (255, 255, 255)
 tl = Timeline()
@@ -111,27 +145,43 @@ target = (tx, ty)
 
 n_cells = 10
 n_words = 10
+n_stack = 3
+n_stack += 1
 
 
 ox = 0
 oy = 0
 controler = Object()
 controler.symbols = []
-controler.reset = Shape(ox, oy, w, w, (255, 0, 0), text="R", z=-2)
-tl.add(Place(controler.reset), on=controler.reset)
-for i, (symbol, name) in enumerate(zip("+-⯇⯈", ("INC", "DEC", "LEFT", "RIGHT"))):
-	s = Shape(ox+(i+1)*w, oy, w, w, (255, 0, 0), text=symbol, z=-2)
-	tl.add(Place(s), on=s)
+for i, (symbol, name) in enumerate(zip("+-⯇⯈[]", ("INC", "DEC", "LEFT", "RIGHT", "PUSH", "POP"))):
+	s = Shape(ox+i*w, oy, w, w, (255, 0, 0), text=symbol, z=-2)
 	setattr(controler, name, s)
 	controler.symbols.append(s)
+controler.reset = Shape(ox+(i+1)*w+1, oy, w, w, (255, 0, 0), text="R", z=-2)
+controler.reset_next = Shape(ox+(i+2)*w+2, oy, w, w, (0, 0, 255), text="R", z=-2)
+tl.add(Place(controler.reset), on=controler.reset)
+tl.add(Place(controler.reset_next), on=controler.reset_next)
 
 
 ox = 10
 oy = ty
 cells = [Cell(ox+x*w, oy, w) for x in range(n_cells)]
-for cell in cells:
-	for i in range(4):
-		tl.add(Target(controler.symbols[i]), on=cell.symbols[i])
+for i, cell in enumerate(cells):
+	for symbol in cell.symbols:
+		tl.add(Place(symbol), on=symbol)
+	for up, down in cell.stack[1:]:
+		tl.add(Target(up), on=controler.PUSH)
+		tl.add(Target(down), on=controler.POP)
+	for j in range(6):
+		tl.add(Target(controler.symbols[j]), on=cell.symbols[j])
+	if i+1 < n_cells:
+		right = cells[i+1]
+		tl.add(Target(right.place), on=cell.place)
+		tl.add(Place(right.place), on=controler.reset_next)
+	tl.add(Target(controler.reset_next), on=cell.stack[1][1])
+for s in controler.symbols:
+	tl.add(Place(s), on=s)
+
 
 ox = 10
 oy = 10
