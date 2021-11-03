@@ -16,7 +16,7 @@ def iterate(*elements):
 
 class Bit:
 	def __init__(self, x, y, w, first=False):
-		self.not_zero = Shape(x, y, w/2, w, (255, 0, 255), z=-2)
+		self.not_zero = Shape(0, y, w/2, w, (255, 0, 255), z=-4)
 		self.zero = Shape(x, y, w, w, text=0)
 		self.one  = Shape(x, y, w, w, text=1)
 
@@ -95,7 +95,7 @@ class Word:
 
 
 class Cell:
-	SYMBOLS = "+-⯇⯈[]"
+	SYMBOLS = "+-⯇⯈[]."
 	def __init__(self, x, y, w):
 		self.cycle = Shape(x, y+w, w, w)
 		self.place = Shape(x, y+w*2, w, w, (0, 0, 255), z=2)
@@ -137,42 +137,70 @@ class Cell:
 		tl.add(Place(self.next), on=self.next)
 
 
+class Character:
+	SYMBOLS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	def __init__(self, x, y, w, controler):
+		self.symbols = [Shape(x, y, w, w, text=symbol) for i, symbol in enumerate(Character.SYMBOLS)]
+		self.save = Shape(x, y+w, w, w, (0, 255, 0))
+		self.reveal = Shape(tx, ty, w, w, (128, 128, 128), z=3)
+		for i, symbol in enumerate(self.symbols):
+			tl.add(SlideOut(symbol, Animation.UP, repeat=0.001), on=self.save)
+			for j, bit in enumerate(controler):
+				if not i & (1<<j):
+					tl.add(Place(symbol, (0, -w)), on=bit)
+			tl.add(Place(symbol, (0, 0), relative=False), on=self.reveal)
+			tl.add(Appear(self.save), on=self.reveal)
+			tl.add(Target(self.save), on=self.reveal)
+			tl.add(Disappear(self.reveal), on=self.reveal)
+
+
 INC = 0
 DEC = 1
 LEFT = 2
 RIGHT = 3
 PUSH = 4
 POP = 5
-Word.DEFAULT_N_BITS = 4
+OUT = 6
+
+n_cells = 50
+n_words = 10
+n_chars = 10
+n_bits  = 6
+n_stack = 3
+
+n_stack += 1
+
+Word.DEFAULT_N_BITS = n_bits
 Text.DEFAULT_COLOR = (255, 255, 255)
+Text.DEFAULT_SIZE = 14
 tl = Timeline()
 Target = lambda s: Place(s, target, relative=False)
 
-w = 3
+w = 2
 tx = 0
 ty = 50
 target = (tx, ty)
 
-n_cells = 10
-n_words = 10
-n_stack = 3
-n_stack += 1
 
-
-start = Shape(tx, ty, w, w, (0, 255, 0), text="S", z=-4)
+start = Shape(tx, ty, w, w, (0, 255, 0), text="S", z=-5)
 ox = 10
 oy = ty
 cells = [Cell(ox+x*w, oy, w) for x in range(n_cells)]
+Shape(ox, oy+w*4, n_cells*w, w, text=Text("+++++++[⯈++⯈++⯈+++⯈+++⯈+++⯇⯇⯇⯇⯇-]⯈+++.⯈.⯈.⯈.⯈+++.", centerX=False))
 ox = 10
 oy = 10
 words = [Word(ox+w*i, oy, w, False) for i in range(n_words)]
+ox = 50
+oy = 10
+char_controler = [Shape(ox+w*i, oy+2*w, w, w, (255, 255, 0), z=-4) for i in range(n_bits)]
+chars = [Character(ox+w*i, oy, w, char_controler) for i in range(n_chars)]
 
 
 ox = 0
 oy = 0
 controler = Object()
 controler.symbols = []
-for i, (symbol, name) in enumerate(zip("+-⯇⯈[]", ("INC", "DEC", "LEFT", "RIGHT", "PUSH", "POP"))):
+for i, (symbol, name) in enumerate(zip("+-⯇⯈[].", ("INC", "DEC", "LEFT", "RIGHT", "PUSH", "POP", "OUT"))):
 	s = Shape(ox+i*w, oy, w, w, (255, 0, 0), text=symbol, z=-3)
 	setattr(controler, name, s)
 	controler.symbols.append(s)
@@ -182,15 +210,30 @@ tl.add(Place(controler.RESET), on=controler.RESET)
 tl.add(Place(controler.LOOP), on=controler.LOOP)
 
 
-ox = 10
-oy = ty
+for i, char in enumerate(chars):
+	if i > 0:
+		prev = chars[i-1]
+		tl.add(Appear(char.save), on=prev.save)
+		tl.add(Place(char.save), on=prev.save)
+		tl.add(Disappear(prev.save), on=prev.save)
+	tl.add(Target(char.save), on=controler.OUT)
+	for symbol in char.symbols:
+		tl.add(Place(symbol), on=controler.OUT)
+for bit in char_controler:
+	tl.add(Appear(bit), on=controler.OUT)
+	tl.add(Place(bit), on=bit)
+	tl.add(Place(controler.LOOP), on=bit)
+	tl.add(Disappear(bit), on=controler.RESET)
+	tl.add(Place(bit), on=controler.RESET)
+
+
 for i, cell in enumerate(cells):
 	for symbol in cell.symbols:
 		tl.add(Place(symbol), on=symbol)
 	for up, down in cell.stack[1:]:
 		tl.add(Target(up), on=controler.PUSH)
 		tl.add(Target(down), on=controler.POP)
-	for j in range(6):
+	for j in range(7):
 		tl.add(Target(controler.symbols[j]), on=cell.symbols[j])
 	if i+1 < n_cells:
 		right = cells[i+1]
@@ -203,8 +246,6 @@ for s in controler.symbols:
 	tl.add(Place(s), on=s)
 
 
-ox = 10
-oy = 10
 for i, word in enumerate(words):
 	left = words[(i-1)%n_words]
 	right = words[(i+1)%n_words]
@@ -213,15 +254,18 @@ for i, word in enumerate(words):
 	tl.add(Appear(word.left), on=controler.LEFT)
 	tl.add(Appear(word.right), on=controler.RIGHT)
 	tl.add(Appear(word.test), on=controler.POP)
+	tl.add(Appear(word.test), on=controler.OUT)
 	for control in word.get_controls():
 		tl.add(Target(control), on=right.left)
 		tl.add(Target(control), on=left.right)
 		tl.add(Target(controler.RESET), on=control)
 		tl.add(Disappear(control), on=controler.RESET)
 
-	for bit in word.bits:
+	for bit, char_bit in zip(word.bits, char_controler[::-1]):
 		tl.add(Target(controler.LOOP), on=bit.not_zero)
-		tl.add(Place(bit.not_zero), on=controler.LOOP)
+		tl.add(Place(bit.not_zero), on=bit.not_zero)
+		tl.add(Place(bit.not_zero), on=controler.RESET)
+		tl.add(Target(char_bit), on=bit.not_zero)
 		tl.add(Disappear(bit.next0), on=start)
 		tl.add(Disappear(bit.next1), on=start)
 
