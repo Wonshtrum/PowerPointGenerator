@@ -95,12 +95,13 @@ class Word:
 
 
 class Cell:
-	SYMBOLS = "+-⯇⯈[]."
+	SYMBOLS = "+-⯇⯈[].,"
 	def __init__(self, x, y, w):
 		self.cycle = Shape(x, y+w, w, w)
 		self.place = Shape(x, y+w*2, w, w, (0, 0, 255), z=2)
 		self.next = Shape(x, y+w*3, w, w, (255, 0, 255))
-		self.symbols = [Shape(x, y, w, w, text=symbol) for i, symbol in enumerate(Cell.SYMBOLS)]
+		self.skip = Shape(x, y+w*4, w, w, (255, 128, 0), text="[", z=-1)
+		self.symbols = [Shape(x, y, w, w, text=symbol, z=-4*(symbol in "[]")) for i, symbol in enumerate(Cell.SYMBOLS)]
 		self.stack = [(
 			Shape(x, y-w*(i+1), w/2, w, (255, 255*(i==n_stack-1), 255), text="▲"),
 			Shape(x+w/2, y-w*(i+1), w/2, w, (255, 255*(i==0), 255), text="▼")) for i in range(n_stack)]
@@ -130,11 +131,14 @@ class Cell:
 				tl.add(Disappear(down), on=down)
 
 		tl.add(Target(self.stack[0][0]), on=self.symbols[PUSH])
+		tl.add(Target(self.skip), on=self.symbols[PUSH])
 		tl.add(Target(self.next), on=self.stack[1][1])
 		tl.add(Target(self.place), on=self.next)
+		tl.add(Disappear(self.skip), on=self.next)
 
 		tl.add(Place(self.place), on=self.place)
 		tl.add(Place(self.next), on=self.next)
+		tl.add(Place(self.skip), on=self.skip)
 
 
 class Character:
@@ -161,10 +165,11 @@ RIGHT = 3
 PUSH = 4
 POP = 5
 OUT = 6
+IN = 7
 
-n_cells = 50
-n_words = 10
-n_chars = 10
+n_cells = 10
+n_words = 5
+n_chars = 5
 n_bits  = 6
 n_stack = 3
 
@@ -176,17 +181,19 @@ Text.DEFAULT_SIZE = 14
 tl = Timeline()
 Target = lambda s: Place(s, target, relative=False)
 
+
 w = 2
 tx = 0
 ty = 50
 target = (tx, ty)
-
-
 start = Shape(tx, ty, w, w, (0, 255, 0), text="S", z=-5)
+end = Shape(tx, ty, w, w, (128, 128, 128), text="■", z=4)
+tl.add(Place(end), on=end)
+
+
 ox = 10
 oy = ty
 cells = [Cell(ox+x*w, oy, w) for x in range(n_cells)]
-Shape(ox, oy+w*4, n_cells*w, w, text=Text("+++++++[⯈++⯈++⯈+++⯈+++⯈+++⯇⯇⯇⯇⯇-]⯈+++.⯈.⯈.⯈.⯈+++.", centerX=False))
 ox = 10
 oy = 10
 words = [Word(ox+w*i, oy, w, False) for i in range(n_words)]
@@ -200,14 +207,58 @@ ox = 0
 oy = 0
 controler = Object()
 controler.symbols = []
-for i, (symbol, name) in enumerate(zip("+-⯇⯈[].", ("INC", "DEC", "LEFT", "RIGHT", "PUSH", "POP", "OUT"))):
+for i, (symbol, name) in enumerate(zip(Cell.SYMBOLS, ("INC", "DEC", "LEFT", "RIGHT", "PUSH", "POP", "OUT", "IN"))):
 	s = Shape(ox+i*w, oy, w, w, (255, 0, 0), text=symbol, z=-3)
 	setattr(controler, name, s)
 	controler.symbols.append(s)
 controler.RESET = Shape(ox+(i+1)*w+1, oy, w, w, (255, 0, 0), text="R", z=-3)
 controler.LOOP  = Shape(ox+(i+2)*w+2, oy, w, w, (255, 0, 0), text="L", z=-3)
+controler.SKIP  = Shape(ox+(i+3)*w+3, oy, w, w, (255, 128, 0), text="S", z=-3)
+controler.COVER = Shape(ox+(i+4)*w+3, oy, w, w, (255, 128, 0), text="C", z=-3)
+controler.RESET_COVER = Shape(ox+(i+5)*w+3, oy, w, w, (255, 128, 0), text="R", z=-3)
+controler.COVERS = [(
+	Shape(ox+(i+5+j)*w+3+w/2, oy, w/2, w, (255, 128, 0), text="▲", z=-3, ignore=j==n_stack-1),
+	Shape(ox+(i+5+j)*w+3, oy, w/2, w, (255, 128, 0), text="▼", z=-3, ignore=j==0)) for j in range(n_stack-1, -1, -1)][::-1]
+
+for i, (up, down) in enumerate(controler.COVERS):
+	if i < n_stack-1:
+		next_up, next_down = controler.COVERS[i+1]
+		if i < n_stack-2:
+			tl.add(Appear(next_up), on=up)
+			tl.add(Place(next_up), on=up)
+		tl.add(Appear(next_down), on=up)
+		tl.add(Place(next_down), on=up)
+		tl.add(Disappear(up), on=up)
+		if i > 0:
+			tl.add(Disappear(down), on=up)
+	if i > 0:
+		prev_up, prev_down = controler.COVERS[i-1]
+		tl.add(Appear(prev_up), on=down)
+		if i > 1:
+			tl.add(Appear(prev_down), on=down)
+			tl.add(Place(prev_down), on=down)
+		tl.add(Place(prev_up), on=down)
+		if i < n_stack-1:
+			tl.add(Disappear(up), on=down)
+		tl.add(Disappear(down), on=down)
+for i, (up, down) in enumerate(controler.COVERS):
+	if i < n_stack-1:
+		tl.add(Target(up), on=controler.SKIP)
+	if i > 0:
+		tl.add(Target(down), on=controler.POP)
+		if i < n_stack-1:
+			tl.add(Target(controler.RESET_COVER), on=up)
+		if i > 1:
+			tl.add(Target(controler.RESET_COVER), on=down)
+
 tl.add(Place(controler.RESET), on=controler.RESET)
 tl.add(Place(controler.LOOP), on=controler.LOOP)
+tl.add(Place(controler.RESET_COVER), on=controler.RESET_COVER)
+tl.add(Place(controler.SKIP), on=controler.SKIP)
+tl.add(Place(controler.COVER), on=controler.COVER)
+tl.add(Target(controler.RESET), on=controler.RESET_COVER)
+tl.add(Appear(controler.COVER), on=controler.COVERS[0][0])
+tl.add(Disappear(controler.COVER), on=controler.COVERS[1][1])
 
 
 for i, char in enumerate(chars):
@@ -215,7 +266,7 @@ for i, char in enumerate(chars):
 		prev = chars[i-1]
 		tl.add(Appear(char.save), on=prev.save)
 		tl.add(Place(char.save), on=prev.save)
-		tl.add(Disappear(prev.save), on=prev.save)
+	tl.add(Disappear(char.save), on=char.save)
 	tl.add(Target(char.save), on=controler.OUT)
 	for symbol in char.symbols:
 		tl.add(Place(symbol), on=controler.OUT)
@@ -230,15 +281,25 @@ for bit in char_controler:
 for i, cell in enumerate(cells):
 	for symbol in cell.symbols:
 		tl.add(Place(symbol), on=symbol)
-	for up, down in cell.stack[1:]:
-		tl.add(Target(up), on=controler.PUSH)
-		tl.add(Target(down), on=controler.POP)
-	for j in range(7):
+		tl.add(Place(symbol), on=controler.COVER)
+	tl.add(Place(controler.COVER), on=cell.symbols[PUSH])
+	tl.add(Place(controler.COVER), on=cell.symbols[POP])
+	for j, (up, down) in enumerate(cell.stack):
+		if j > 0:
+			tl.add(Target(up), on=controler.PUSH)
+			tl.add(Target(down), on=controler.POP)
+			tl.add(Place(down), on=controler.RESET_COVER)
+		tl.add(Place(up), on=controler.RESET_COVER)
+	for j in range(len(Cell.SYMBOLS)):
 		tl.add(Target(controler.symbols[j]), on=cell.symbols[j])
+	tl.add(Target(controler.SKIP), on=cell.skip)
 	if i+1 < n_cells:
 		right = cells[i+1]
 		tl.add(Target(right.place), on=cell.place)
 		tl.add(Place(right.place), on=controler.LOOP)
+		tl.add(Appear(cell.skip), on=right.place)
+		tl.add(Place(cell.skip), on=right.place)
+		tl.add(Target(controler.COVER), on=right.place)
 	tl.add(Appear(cell.next), on=controler.LOOP)
 	tl.add(Place(cell.next), on=controler.LOOP)
 	tl.add(Disappear(cell.next), on=controler.POP)
