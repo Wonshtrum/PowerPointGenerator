@@ -50,6 +50,22 @@ class Animation:
 	def spec(self):
 		raise NotImplementedError
 
+	def sub_spec_anim(self, dur=None, *attributes):
+		result = ""
+		if dur is not None:
+			result += f"""
+											<p:cTn id="{Timeline.get_id()}" dur="{dur}" fill="hold"/>"""
+		result += f"""
+											<p:tgtEl>
+												<p:spTgt spid="{self.target}"/>
+											</p:tgtEl>"""
+		if attributes:
+			result += f"""
+											<p:attrNameLst>"""+"".join(f"""
+												<p:attrName>{attribute}</p:attrName>""" for attribute in attributes)+"""
+											</p:attrNameLst>"""
+		return result
+
 	def spec_set(self, attribute, value, on_sart=True):
 		return f"""
 									<p:set>
@@ -59,29 +75,18 @@ class Animation:
 													<p:cond delay="{0 if on_sart else self.dur-1}"/>
 												</p:stCondLst>
 											</p:cTn>
-											<p:tgtEl>
-												<p:spTgt spid="{self.target}"/>
-											</p:tgtEl>
-											<p:attrNameLst>
-												<p:attrName>{attribute}</p:attrName>
-											</p:attrNameLst>
+											{self.sub_spec_anim(None, attribute)}
 										</p:cBhvr>
 										<p:to>
 											<p:strVal val="{value}"/>
 										</p:to>
 									</p:set>"""
 
-	def spec_anim(self, attribute, value1, value2):
+	def spec_anim_lerp(self, attribute, value1, value2):
 		return f"""
 									<p:anim valueType="num" calcmode="lin">
 										<p:cBhvr additive="base">
-											<p:cTn id="{Timeline.get_id()}" dur="{self.dur}" fill="hold"/>
-											<p:tgtEl>
-												<p:spTgt spid="{self.target}"/>
-											</p:tgtEl>
-											<p:attrNameLst>
-												<p:attrName>{attribute}</p:attrName>
-											</p:attrNameLst>
+											{self.sub_spec_anim(self.dur, attribute)}
 										</p:cBhvr>
 										<p:tavLst>
 											<p:tav tm="0">
@@ -101,11 +106,8 @@ class Animation:
 		return f"""
 									<p:animEffect filter="{filter}" transition="{transition}">
 										<p:cBhvr>
-											<p:cTn id="{Timeline.get_id()}" dur="{self.dur}"/>
-												<p:tgtEl>
-													<p:spTgt spid="{self.target}"/>
-												</p:tgtEl>
-											</p:cBhvr>
+											{self.sub_spec_anim()}
+										</p:cBhvr>
 									</p:animEffect>"""
 
 
@@ -163,8 +165,8 @@ class SlideIn(Animation):
 	def spec(self):
 		_, x, y = SlideIn.DIRECTIONS[self.dir]
 		return (self.spec_set("style.visibility", "visible")+
-			self.spec_anim("ppt_x", x, "#ppt_x")+
-			self.spec_anim("ppt_y", y, "#ppt_y"))
+			self.spec_anim_lerp("ppt_x", x, "#ppt_x")+
+			self.spec_anim_lerp("ppt_y", y, "#ppt_y"))
 
 
 class SlideOut(Animation):
@@ -187,8 +189,8 @@ class SlideOut(Animation):
 	def spec(self):
 		_, x, y = SlideOut.DIRECTIONS[self.dir]
 		return (self.spec_set("style.visibility", "hidden", False)+
-			self.spec_anim("ppt_x", "ppt_x", x)+
-			self.spec_anim("ppt_y", "ppt_y", y))
+			self.spec_anim_lerp("ppt_x", "ppt_x", x)+
+			self.spec_anim_lerp("ppt_y", "ppt_y", y))
 
 
 class Path(Animation):
@@ -216,14 +218,7 @@ class Path(Animation):
 		return f"""
 									<p:animMotion ptsTypes="{"A"*len(self.path)}" rAng="0" pathEditMode="{"relative" if self.relative else "fixed"}" path="{self.svg_path()}" origin="layout">
 										<p:cBhvr>
-											<p:cTn id="{Timeline.get_id()}" dur="{self.dur}" fill="hold"/>
-											<p:tgtEl>
-												<p:spTgt spid="{self.target}"/>
-											</p:tgtEl>
-											<p:attrNameLst>
-												<p:attrName>ppt_x</p:attrName>
-												<p:attrName>ppt_y</p:attrName>
-											</p:attrNameLst>
+											{self.sub_spec_anim(self.dur, "ppt_x", "ppt_y")}
 										</p:cBhvr>
 									</p:animMotion>"""
 
@@ -231,3 +226,33 @@ class Path(Animation):
 class Place(Path):
 	def __init__(self, shape, position=(0, 0), dur=Animation.MIN_TIME, delay=0, click=False, relative=True, centered=False):
 		super().__init__(shape, [position, position], dur, delay, 1, click, relative, centered)
+
+
+class Rotation(Animation):
+	def __init__(self, shape, angle=180, dur=Animation.MIN_TIME, delay=0, repeat=1, click=False):
+		super().__init__(shape, Animation.EMPH, 8, 0, dur, delay, repeat, click)
+		self.angle = int(angle*60000)
+
+	def spec(self):
+		return f"""
+									<p:animRot by="{self.angle}">
+										<p:cBhvr>
+											{self.sub_spec_anim(self.dur, "r")}
+										</p:cBhvr>
+									</p:animRot>"""
+
+
+class Scale(Animation):
+	def __init__(self, shape, scale_x=100, scale_y=100, dur=Animation.MIN_TIME, delay=0, repeat=1, click=False):
+		super().__init__(shape, Animation.EMPH, 6, 0, dur, delay, repeat, click)
+		self.scale_x = int(scale_x*1000)
+		self.scale_y = int(scale_y*1000)
+
+	def spec(self):
+		return f"""
+									<p:animScale>
+										<p:cBhvr>
+											{self.sub_spec_anim(self.dur)}
+										</p:cBhvr>
+										<p:by x="{self.scale_x}" y="{self.scale_y}"/>
+									</p:animScale>"""
