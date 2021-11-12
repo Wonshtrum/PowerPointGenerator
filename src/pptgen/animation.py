@@ -106,7 +106,7 @@ class Animation:
 		return f"""
 									<p:animEffect filter="{filter}" transition="{transition}">
 										<p:cBhvr>
-											{self.sub_spec_anim()}
+											{self.sub_spec_anim(self.dur)}
 										</p:cBhvr>
 									</p:animEffect>"""
 
