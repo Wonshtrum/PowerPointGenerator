@@ -23,14 +23,10 @@ class Bit:
 		tl.add(Appear(self.not_zero), on=self.zero)
 		tl.add(Appear(self.one), on=self.zero)
 		tl.add(Disappear(self.zero), on=self.zero)
-		tl.add(Place(self.zero), on=self.zero)
-		tl.add(Place(self.one), on=self.zero)
 
 		tl.add(Disappear(self.not_zero), on=self.one)
 		tl.add(Appear(self.zero), on=self.one)
 		tl.add(Disappear(self.one), on=self.one)
-		tl.add(Place(self.zero), on=self.one)
-		tl.add(Place(self.one), on=self.one)
 
 		if first:
 			self.next0 = self.next1 = None
@@ -66,6 +62,7 @@ class Word:
 		self.right = Shape(x+(i+3)*w*h, y+(i+3)*w*v, w, w, (0, 0, 255), text="⯈", z=-1)
 		self.reset = Shape(x+(i+4)*w*h, y+(i+4)*w*v, w, w, (120, 120, 120), text="R", z=-1)
 		self.test = Shape(x+(i+5)*w*h, y+(i+5)*w*v, w, w, (255, 0, 255), text="T", z=-1)
+		self.set = Shape(x+(i+6)*w*h, y+(i+6)*w*v, w, w, (255, 255, 0), text="I", z=-1)
 
 		tl.add(Place(self.reset), on=self.reset)
 
@@ -73,7 +70,7 @@ class Word:
 			tl.add(Place(control), on=self.left)
 			tl.add(Place(control), on=self.right)
 
-		for bit in self.bits:
+		for i, bit in enumerate(self.bits):
 			tl.add(Place(bit.next0), on=self.reset)
 			tl.add(Place(bit.next1), on=self.reset)
 			tl.add(Appear(bit.next1), on=self.inc)
@@ -81,6 +78,9 @@ class Word:
 			tl.add(Disappear(bit.next0), on=self.inc)
 			tl.add(Disappear(bit.next1), on=self.dec)
 			tl.add(Target(bit.not_zero), on=self.test)
+			for _ in (self.set, bit.zero, bit.one):
+				tl.add(Place(bit.zero, (tx, ty+(i-Word.DEFAULT_N_BITS)*w), relative=False), on=_)
+				tl.add(Place(bit.one, (tx, ty+(i-Word.DEFAULT_N_BITS)*w), relative=False), on=_)
 
 		lsb = self.bits[-1]
 		tl.add(Target(lsb.one), on=self.inc)
@@ -91,7 +91,7 @@ class Word:
 		tl.add(Target(self.reset), on=self.dec)
 
 	def get_controls(self):
-		return [self.inc, self.dec, self.left, self.right, self.test]
+		return [self.set, self.inc, self.dec, self.left, self.right, self.test]
 
 
 class Cell:
@@ -152,14 +152,14 @@ class Character:
 		self.save = Shape(x, y+w, w, w, (0, 255, 0))
 		self.reveal = Shape(tx, ty, w, w, (128, 128, 128), z=3)
 		for i, symbol in enumerate(self.symbols):
-			tl.add(SlideOut(symbol, Animation.UP, repeat=0.001), on=self.save)
+			tl.add(SlideOut(symbol, Animation.UP, repeat=0.01), on=self.save)
 			for j, bit in enumerate(controler):
 				if not i & (1<<j):
 					tl.add(Place(symbol, (0, -w)), on=bit)
 			tl.add(Place(symbol, (0, 0), relative=False), on=self.reveal)
-			tl.add(Appear(self.save), on=self.reveal)
-			tl.add(Target(self.save), on=self.reveal)
-			tl.add(Disappear(self.reveal), on=self.reveal)
+		tl.add(Appear(self.save), on=self.reveal)
+		tl.add(Target(self.save), on=self.reveal)
+		tl.add(Disappear(self.reveal), on=self.reveal)
 
 
 INC = 0
@@ -217,6 +217,7 @@ for i, (symbol, name) in enumerate(zip(Cell.SYMBOLS, ("INC", "DEC", "LEFT", "RIG
 	s = Shape(ox+i*w, oy, w, w, (255, 0, 0), text=symbol, z=-3)
 	setattr(controler, name, s)
 	controler.symbols.append(s)
+controler.ENTER = Shape(tx, ty-(Word.DEFAULT_N_BITS+1)*w, w, w, (255, 0, 0), text="E", z=1)
 controler.RESET = Shape(ox+(i+1)*w+1, oy, w, w, (255, 0, 0), text="R", z=-3)
 controler.LOOP  = Shape(ox+(i+2)*w+2, oy, w, w, (255, 0, 0), text="L", z=-3)
 controler.SKIP  = Shape(ox+(i+3)*w+3, oy, w, w, (255, 128, 0), text="S", z=-3)
@@ -257,14 +258,16 @@ for i, (up, down) in enumerate(controler.COVERS):
 		if i > 1:
 			tl.add(Target(controler.RESET_COVER), on=down)
 
+tl.add(Place(controler.ENTER), on=controler.ENTER)
 tl.add(Place(controler.RESET), on=controler.RESET)
 tl.add(Place(controler.LOOP), on=controler.LOOP)
-tl.add(Place(controler.RESET_COVER), on=controler.RESET_COVER)
 tl.add(Place(controler.SKIP), on=controler.SKIP)
 tl.add(Place(controler.COVER), on=controler.COVER)
+tl.add(Place(controler.RESET_COVER), on=controler.RESET_COVER)
 tl.add(Target(controler.RESET), on=controler.RESET_COVER)
 tl.add(Appear(controler.COVER), on=controler.COVERS[0][0])
 tl.add(Disappear(controler.COVER), on=controler.COVERS[1][1])
+tl.add(Disappear(controler.ENTER), on=controler.ENTER)
 
 
 for i, char in enumerate(chars):
@@ -287,9 +290,10 @@ for bit in char_controler:
 for i, cell in enumerate(cells):
 	for j, symbol in enumerate(cell.symbols):
 		tl.add(Place(symbol), on=symbol)
-		tl.add(Place(symbol), on=controler.COVER)
-	tl.add(Place(controler.COVER), on=cell.symbols[PUSH])
-	tl.add(Place(controler.COVER), on=cell.symbols[POP])
+		if j != POP and j != PUSH:
+			tl.add(Place(symbol), on=controler.COVER)
+		else:
+			tl.add(Place(controler.COVER), on=symbol)
 	for j, (up, down) in enumerate(cell.stack):
 		if j < n_stack-1:
 			tl.add(Place(up), on=controler.RESET_COVER)
@@ -324,16 +328,27 @@ for i, word in enumerate(words):
 	tl.add(Appear(word.right), on=controler.RIGHT)
 	tl.add(Appear(word.test), on=controler.POP)
 	tl.add(Appear(word.test), on=controler.OUT)
-	for control in word.get_controls():
+	tl.add(Appear(word.set), on=controler.IN)
+	for i, control in enumerate(word.get_controls()):
 		tl.add(Target(control), on=right.left)
 		tl.add(Target(control), on=left.right)
-		tl.add(Target(controler.RESET), on=control)
 		tl.add(Disappear(control), on=controler.RESET)
+		if i == 0:
+			tl.add(Appear(controler.ENTER), on=control)
+		else:
+			tl.add(Target(controler.RESET), on=control)
+	tl.add(Appear(controler.ENTER), on=word.inc)
+	tl.add(Target(controler.ENTER), on=word.inc)
+	tl.add(Appear(controler.ENTER), on=word.dec)
+	tl.add(Target(controler.ENTER), on=word.dec)
+	tl.add(Disappear(word.set), on=controler.ENTER)
 
 	for bit, char_bit in zip(word.bits, char_controler[::-1]):
 		tl.add(Target(controler.LOOP), on=bit.not_zero)
 		tl.add(Place(bit.not_zero), on=bit.not_zero)
 		tl.add(Place(bit.not_zero), on=controler.RESET)
+		tl.add(Place(bit.one), on=controler.ENTER)
+		tl.add(Place(bit.zero), on=controler.ENTER)
 		tl.add(Target(char_bit), on=bit.not_zero)
 		tl.add(Disappear(bit.next0), on=start)
 		tl.add(Disappear(bit.next1), on=start)
@@ -347,8 +362,10 @@ tl.add(Target(cells[0].place), on=start)
 
 progs = [
 	"++++++[⯈[++++++⯈]+[⯇]⯈-]⯈⯈⯈--.⯈+.⯇++++..⯇-.⯇⯇-.⯈+.⯈.+++.⯈.⯈-.",
+	",[⯈[++++++⯈]+[⯇]⯈-]⯈⯈⯈--.⯈+.⯇++++..⯇-.⯇⯇-.⯈+.⯈.+++.⯈.⯈-.",
 	"[-⯈+⯇]",
 	"[[-]+]",
+	",.⯈,.",
 ]
 ox = 10
 oy = ty+w*5
