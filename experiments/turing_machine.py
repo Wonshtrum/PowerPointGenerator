@@ -1,4 +1,5 @@
 from pptgen import *
+from pptgen.backends import save_to_pptx
 
 
 def iterate(*elements):
@@ -251,4 +252,4 @@ for cell in cells:
 shapes = Shape.dump()
 slide = Slide("turing_machine", shapes, tl)
 doc = Document("turing_machine", [slide])
-doc.save()
+save_to_pptx(doc)

@@ -1,4 +1,5 @@
 from pptgen import *
+from pptgen.backends import save_to_pptx
 
 
 def iterate(*elements):
@@ -90,4 +91,4 @@ for i in range(16):
 shapes = Shape.dump()
 slide = Slide("binary", shapes, tl)
 doc = Document("binary", [slide])
-doc.save()
+save_to_pptx(doc)

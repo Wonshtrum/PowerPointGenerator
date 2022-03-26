@@ -1,4 +1,5 @@
 from pptgen import *
+from pptgen.backends import save_to_pptx
 
 
 class Object:
@@ -378,4 +379,4 @@ for i, prog in enumerate(progs):
 shapes = Shape.dump()
 slide = Slide("brainfck", shapes, tl)
 doc = Document("brainfck", [slide])
-doc.save()
+save_to_pptx(doc)
