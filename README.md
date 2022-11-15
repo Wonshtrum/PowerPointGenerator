@@ -17,13 +17,13 @@ It is a [1D cellular automaton](https://en.wikipedia.org/wiki/Rule_110) whose ru
 This slide counts around 1200 shapes and 6100 animations.
 
 ### Brainfuck
-[Brainfuck](https://en.wikipedia.org/wiki/Brainfuck) is an esoteric programming language known for its minimalism. Indeed, it is composed of only 8 symbols and works with two tapes: one for code, and one for data. I have created in this slide a brainfuck editor and interpreter. The user can write the program he wants (within the limit of characters imposed) and then execute it y continuously left clicking at a fixed location. Here is a "Hello World" program running (x40 speed):
+[Brainfuck](https://en.wikipedia.org/wiki/Brainfuck) is an esoteric programming language known for its minimalism. Indeed, it is composed of only 8 symbols and works with two tapes: one for code, and one for data. I have created in this slide a brainfuck editor and interpreter. The user can write the program he wants (within the limit of characters imposed) and then execute it by continuously left clicking at a fixed location. Here is a "Hello World" program running (x40 speed):
 
 ![brainfuck](images/brainfck.gif)
 
 This is by far my most complex generated powerpoint with around 2500 shapes and 15000 animations. It is also the most CPU intensive. To limit the loading time and execution slownest, some modifications had to be made:
- - the data tape is not composed of 6 bit cells
- - the output is not ASCII (but 0 to 9, A to Z and followed by spaces)
+ - the data tape is composed of 6 bits integers (not bytes)
+ - the output is not ASCII (but a 64 letters alphabet: '0' to '9', 'A' to 'Z', followed by 28 spaces)
  - the call stack is finite (depth 3 by default)
 
 But this is only a performance limitation, you can change all these specifications in the python script if your computer allows it.
