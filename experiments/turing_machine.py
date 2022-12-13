@@ -1,5 +1,5 @@
 from pptgen import *
-from pptgen.backends import save_to_pptx
+from pptgen.serializer import save_to_pptx
 
 
 def iterate(*elements):

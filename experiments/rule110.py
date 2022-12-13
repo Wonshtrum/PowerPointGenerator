@@ -1,5 +1,6 @@
 from pptgen import *
-from pptgen.backends import save_to_pptx
+from pptgen.serializer import save_to_pptx
+from pptgen.runner import tk_run
 
 
 def iterate(*elements):
@@ -125,4 +126,6 @@ for y in range(n_rows):
 shapes = Shape.dump()
 slide = Slide("rule110", shapes, tl)
 doc = Document("rule110", [slide])
-save_to_pptx(doc)
+#save_to_pptx(doc)
+scale = 10/Document.SCALE
+tk_run(slide, Document.WIDTH*scale, Document.HEIGHT*scale, scale)

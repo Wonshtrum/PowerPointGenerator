@@ -1,5 +1,6 @@
 from pptgen import *
-from pptgen.backends import save_to_pptx
+from pptgen.serializer import save_to_pptx
+from pptgen.runner import tk_run
 
 
 class Object:
@@ -379,4 +380,6 @@ for i, prog in enumerate(progs):
 shapes = Shape.dump()
 slide = Slide("brainfck", shapes, tl)
 doc = Document("brainfck", [slide])
-save_to_pptx(doc)
+#save_to_pptx(doc)
+scale = 10/Document.SCALE
+tk_run(slide, Document.WIDTH*scale, Document.HEIGHT*scale, scale)

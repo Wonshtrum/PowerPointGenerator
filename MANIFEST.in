@@ -1,1 +1,1 @@
-recursive-include src/pptgen/base *
+recursive-include src/pptgen/serializer/pptx/base *

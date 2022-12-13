@@ -100,6 +100,10 @@ class Shape:
 		self.style = wrap(style, Style)
 		self.text = wrap(text, Text)
 
+	def contains(self, tx, ty):
+		x, y, cx, cy = self.x, self.y, self.cx, self.cy
+		return tx >= x and tx <= x+cx and ty >= y and ty <= y+cy
+
 	@scale_on_demand
 	def get_x(self):
 		return self.x
@@ -125,6 +129,9 @@ class Group:
 				if shape in Shape.cache:
 					Shape.cache.remove(shape)
 			Shape.cache.append(self)
+
+	def contains(self, tx, ty):
+		return any(shape.contains(tx, ty) for shape in self.shapes)
 
 	@scale_on_demand
 	def get_x(self):
