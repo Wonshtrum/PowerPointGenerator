@@ -1,5 +1,6 @@
 from pptgen import *
 from pptgen.serializer import save_to_pptx
+from pptgen.runner import tk_run
 
 
 def iterate(*elements):
@@ -82,8 +83,8 @@ for i in range(nb_cells):
 	r2 = Shape(x+w+1+dx, y+dy, w, w, text="⯈")
 	l1 = Shape(dx, oy+w, w, w)
 	l2 = Shape(x+dx, y+dy, w, w, text="⯇")
-	cell.right = Group(r1, r2, z=2*nb_symbols+3)
-	cell.left  = Group(l1, l2, z=2*nb_symbols+4)
+	cell.right = Group(r1, r2, name="_UPDATE", z=2*nb_symbols+3)
+	cell.left  = Group(l1, l2, name="_UPDATE", z=2*nb_symbols+4)
 
 	for j in range(nb_symbols-1):
 		color = (0, (j+1)*255/nb_symbols, (j+1)*255/nb_symbols)
@@ -181,7 +182,7 @@ tl.add(Place(left, (w/2, 0)), on=right)
 tl.add(Place(left), on=left)
 tl.add(Place(right, (w/2, 0)), on=left)
 
-stop  = Shape(ox, oy+(nb_symbols+nb_states+3)*(w+1), w, w, (255, 0, 0), text=Text("■", centerX=False, left=0.5))
+stop = Shape(ox, oy+(nb_symbols+nb_states+3)*(w+1), w, w, (255, 0, 0), text=Text("■", centerX=False, left=0.5), name="_STOP")
 tl.add(Place(stop, (w/2, 0)))
 tl.add(Place(stop), on=stop)
 tl.add(Place(halt), on=stop)
@@ -252,4 +253,6 @@ for cell in cells:
 shapes = Shape.dump()
 slide = Slide("turing_machine", shapes, tl)
 doc = Document("turing_machine", [slide])
-save_to_pptx(doc)
+#save_to_pptx(doc)
+scale = 10/Document.SCALE
+tk_run(slide, Document.WIDTH*scale, Document.HEIGHT*scale, scale, smart_refresh=True)

@@ -1,10 +1,14 @@
-from pptgen import Document
+from pptgen import Document, Group
 from pptgen.animation import *
 import sys
 
 print = lambda *arg, **kwargs: None
 
 class Context:
+    CONTINUE = 0
+    REFRESH = 1
+    STOP = 2
+    EXIT = 3
     def __init__(self, slide):
         self.slide = slide
         self.shapes = {shape.id:shape for shape in slide.shapes}
@@ -13,18 +17,31 @@ class Context:
         self.sequences_head = {k:0 for k in slide.timeline.contexts.keys()}
         self.visible = list(reversed(sorted(slide.shapes, key=lambda shape:shape.z)))
 
+        def rec_alpha(shapes):
+            for shape in shapes:
+                if isinstance(shape, Group):
+                    shape.alpha = 1
+                    rec_alpha(shape.shapes)
+                else:
+                    shape.alpha = 1-(shape.style.fill.alpha/1000)
+
+        rec_alpha(slide.shapes)
         for shape in slide.shapes:
+            if isinstance(shape, Group):
+                shape.x = shape.get_x()
+                shape.y = shape.get_y()
             shape.ox = shape.x
             shape.oy = shape.y
             shape.visible = True
 
         must_be = {}
-        for animation in slide.timeline.contexts["main"]:
-            id = animation.target
-            if id not in must_be:
-                visible = animation.preset != Animation.ENTR
-                must_be[id] = visible
-                self.shapes[id].visible = visible
+        for context in slide.timeline.contexts.values():
+            for animation in context:
+                id = animation.target
+                if id not in must_be:
+                    visible = animation.preset != Animation.ENTR
+                    must_be[id] = visible
+                    self.shapes[id].visible = visible
 
     def apply(self, animation):
         print(animation.target)
@@ -40,16 +57,28 @@ class Context:
             print("Disappear")
         if isinstance(animation, FadeIn):
             print("FadeIn")
+            shape.alpha = animation.repeat/1000
         if isinstance(animation, FadeOut):
             print("FadeOut")
-            print("UNSUPPORTED")
-            sys.exit(1)
+            if animation.repeat == 1000:
+                print("UNSUPPORTED")
+                sys.exit(1)
+            shape.alpha = 1-animation.repeat/1000
         if isinstance(animation, SlideIn):
             print("SlideIn")
             shape.x = shape.ox
             shape.y = shape.oy
         if isinstance(animation, SlideOut):
             print("SlideOut")
+            if animation.repeat > 10:
+                print("UNSUPPORTED")
+                sys.exit(1)
+            if hasattr(animation, "ox"):
+                shape.x = animation.ox
+                shape.y = animation.oy
+            else:
+                animation.ox = shape.x
+                animation.oy = shape.y
         if isinstance(animation, Path):
             print("Path")
             dx, dy = animation.path[-1]
@@ -57,7 +86,6 @@ class Context:
                 print("CENTERED")
                 sys.exit(1)
             if animation.relative:
-                print("Relative", dx, dy)
                 shape.x = shape.ox+dx*Document.SCALE
                 shape.y = shape.oy+dy*Document.SCALE
             else:
@@ -68,14 +96,17 @@ class Context:
         if isinstance(animation, Rotation):
             print("Rotation")
 
-    def run_sequence(self, id, backend, click=False):
-        if id not in self.sequences:
+    def run_sequence(self, target, click=False):
+        if target is None or target.id not in self.sequences:
             id = "main"
+        else:
+            id = target.id
         sequence = self.sequences[id]
         head = self.sequences_head[id]
+
         if head == len(sequence):
             if id == "main" and click:
-                return True
+                return Context.EXIT
             head = 0
 
         for animation in sequence[head:]:
@@ -86,17 +117,26 @@ class Context:
             self.apply(animation)
 
         self.sequences_head[id] = head
-        backend.draw()
-        return False
+
+        if target is not None:
+            if target.name == "_UPDATE":
+                return Context.REFRESH
+            if target.name == "_STOP":
+                return Context.STOP
+        return Context.CONTINUE
 
     def get_under(self, x, y):
-        id = "main"
+        target = None
         for shape in self.visible:
-            if shape.visible and shape.contains(x, y):
-                id = shape.id
-        return id
+            if isinstance(shape, Group):
+                dx, dy = shape.ox-shape.x, shape.oy-shape.y
+            else:
+                dx = dy = 0
+            if shape.visible and shape.contains(x+dx, y+dy):
+                target = shape
+        return target
 
-    def click(self, x, y, backend):
-        id = self.get_under(x, y)
-        print("CLICK", id)
-        return self.run_sequence(id, backend, True)
+    def click(self, x, y):
+        target = self.get_under(x, y)
+        print("CLICK", target)
+        return self.run_sequence(target, True)

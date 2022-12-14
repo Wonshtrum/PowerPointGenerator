@@ -40,9 +40,9 @@ for _ in iterate(*matrix):
 	tl.add(Disappear(_), on=_)
 
 
-stop = Shape(tx, ty, w, w, (0, 0, 255), z=2+n_rows)
+stop = Shape(tx, ty, w, w, (0, 0, 255), name="_STOP", z=2+n_rows)
 zero = Shape(tx, ty, w, w, (120, 120, 120), z=-1-n_m)
-start = Shape(tx, ty, w, w, (0, 255, 0), z=-4-n_m)
+start = Shape(tx, ty, w, w, (0, 255, 0), name="_UPDATE", z=-4-n_m)
 call_in = [Shape(tx, ty, w, w, (255, 0, 255), z=-3-n_m) for _ in range(n_group)]
 call_out = [Shape(tx, ty, w, w, (255, 100, 255), z=-n_m) for _ in range(n_group)]
 tl.add(Disappear(start), on=start)
@@ -114,7 +114,7 @@ for y in range(n_rows):
 			last = cell.next
 
 	if y < n_rows-1:
-		tmp = Shape(ox-(x+1)*(w+d), oy+y*(w+d), w, w, (255, 255, 0), z=1+n_rows-y)
+		tmp = Shape(ox-(x+1)*(w+d), oy+y*(w+d), w, w, (255, 255, 0), name="_UPDATE", z=1+n_rows-y)
 		tl.add(Place(tmp, target, relative=False), on=last)
 		tl.add(Appear(call_in[(x+i)%n_group]), on=tmp)
 		tl.add(Place(cells[x][y+1].reset, target, relative=False), on=tmp)
@@ -128,4 +128,4 @@ slide = Slide("rule110", shapes, tl)
 doc = Document("rule110", [slide])
 #save_to_pptx(doc)
 scale = 10/Document.SCALE
-tk_run(slide, Document.WIDTH*scale, Document.HEIGHT*scale, scale)
+tk_run(slide, Document.WIDTH*scale, Document.HEIGHT*scale, scale, smart_refresh=True)

@@ -4,11 +4,12 @@ import tkinter as tk
 import sys
 
 class Backend:
-    def __init__(self, context, width, height, scale):
+    def __init__(self, context, width, height, scale, smart_refresh):
         self.context = context
         self.width = width
         self.height = height
         self.scale = scale
+        self.smart_refresh = smart_refresh
         self.continuous = False
 
         self.win = tk.Tk()
@@ -19,37 +20,49 @@ class Backend:
         self.can.bind("<ButtonRelease-3>", self.stop)
 
     def init(self):
-        self.context.run_sequence("main", self)
+        self.context.run_sequence(None)
+        self.draw()
 
     def click(self, event):
         s = self.scale
         x, y = event.x/s, event.y/s
-        if self.context.click(x, y, self):
+        if self.context.click(x, y) == Context.EXIT:
             sys.exit()
+        self.draw()
 
     def clicks(self, event):
         s = self.scale
         x, y = event.x/s, event.y/s
         self.continuous = True
         while self.continuous:
-            if self.context.click(x, y, self):
+            status = self.context.click(x, y)
+            if not self.smart_refresh or status == Context.REFRESH:
+                self.draw()
+            if status == Context.STOP:
+                self.stop()
+            elif status == Context.EXIT:
                 sys.exit()
             self.can.update()
+        self.draw()
     
-    def stop(self, event):
+    def stop(self, event=None):
         self.continuous = False
 
-    def draw_group(self, shapes):
+    def draw_group(self, shapes, group_x=0, group_y=0, group_alpha=1):
         s = self.scale
         for shape in shapes:
+            alpha = shape.alpha*group_alpha
+            if alpha == 0:
+                continue
             if isinstance(shape, Group):
-                self.draw_group(shape.shapes)
+                self.draw_group(shape.shapes, shape.x-shape.ox, shape.y-shape.oy, alpha)
             else:
-                x, y, cx, cy = shape.x, shape.y, shape.cx, shape.cy
+                x, y, cx, cy = shape.x+group_x, shape.y+group_y, shape.cx, shape.cy
                 fill = "#"+shape.style.fill.color
                 outline = "#"+shape.style.outline.color
                 width = shape.style.width
-                self.can.create_rectangle(x*s, y*s, (x+cx)*s, (y+cy)*s, fill=fill, outline=outline, width=width)
+                stipple = None if alpha == 1 else "gray50"
+                self.can.create_rectangle(x*s, y*s, (x+cx)*s, (y+cy)*s, fill=fill, stipple=stipple, outline=outline, width=width)
                 if shape.text.content is not None:
                     fill = "#"+shape.text.color.color
                     text = shape.text.content
@@ -63,9 +76,9 @@ class Backend:
         self.clear()
         self.draw_group((shape for shape in self.context.visible if shape.visible))
 
-def run(slide, width, height, scale):
+def run(slide, width, height, scale, smart_refresh=False):
     context = Context(slide)
-    backend = Backend(context, width, height, scale)
+    backend = Backend(context, width, height, scale, smart_refresh)
 
     backend.init()
 

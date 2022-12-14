@@ -64,7 +64,7 @@ class Word:
 		self.right = Shape(x+(i+3)*w*h, y+(i+3)*w*v, w, w, (0, 0, 255), text="⯈", z=-1)
 		self.reset = Shape(x+(i+4)*w*h, y+(i+4)*w*v, w, w, (120, 120, 120), text="R", z=-1)
 		self.test = Shape(x+(i+5)*w*h, y+(i+5)*w*v, w, w, (255, 0, 255), text="T", z=-1)
-		self.set = Shape(x+(i+6)*w*h, y+(i+6)*w*v, w, w, (255, 255, 0), text="I", z=-1)
+		self.set = Shape(x+(i+6)*w*h, y+(i+6)*w*v, w, w, (255, 255, 0), text="I", name="_STOP", z=-1)
 
 		tl.add(Place(self.reset), on=self.reset)
 
@@ -100,7 +100,7 @@ class Cell:
 	SYMBOLS = "+-⯇⯈[].,"
 	def __init__(self, x, y, w):
 		self.cycle = Shape(x, y+w, w, w)
-		self.place = Shape(x, y+w*2, w, w, (0, 0, 255), z=2)
+		self.place = Shape(x, y+w*2, w, w, (0, 0, 255), name="_UPDATE", z=2)
 		self.next = Shape(x, y+w*3, w, w, (255, 0, 255))
 		self.skip = Shape(x, y+w*4, w, w, (255, 128, 0), text="[", z=-1)
 		self.symbols = [Shape(x, y, w, w, text=symbol, z=-4*(symbol in "[]")) for i, symbol in enumerate(Cell.SYMBOLS)]
@@ -192,9 +192,9 @@ w = 1.5
 tx = 0
 ty = 50
 target = (tx, ty)
-start = Shape(tx, ty, w, w, (0, 255, 0), text="S", z=-5)
-end = Shape(tx, ty, w, w, (128, 128, 128), text="■", z=4)
-tl.add(Place(end), on=end)
+start = Shape(tx, ty, w, w, (0, 255, 0), text="S", name="_UPDATE", z=-5)
+stop = Shape(tx, ty, w, w, (128, 128, 128), text="■", name="_STOP", z=4)
+tl.add(Place(stop), on=stop)
 
 
 ox = 10
@@ -381,5 +381,5 @@ shapes = Shape.dump()
 slide = Slide("brainfck", shapes, tl)
 doc = Document("brainfck", [slide])
 #save_to_pptx(doc)
-scale = 10/Document.SCALE
-tk_run(slide, Document.WIDTH*scale, Document.HEIGHT*scale, scale)
+scale = 15/Document.SCALE
+tk_run(slide, Document.WIDTH*scale, Document.HEIGHT*scale, scale, smart_refresh=True)
