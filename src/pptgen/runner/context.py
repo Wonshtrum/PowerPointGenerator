@@ -1,6 +1,7 @@
 from pptgen import Document, Group
 from pptgen.animation import *
 import sys
+import time
 
 print = lambda *arg, **kwargs: None
 
@@ -16,6 +17,7 @@ class Context:
         self.sequences = slide.timeline.contexts
         self.sequences_head = {k:0 for k in slide.timeline.contexts.keys()}
         self.visible = list(reversed(sorted(slide.shapes, key=lambda shape:shape.z)))
+        self.t = 0
 
         def rec_alpha(shapes):
             for shape in shapes:
@@ -127,6 +129,7 @@ class Context:
 
     def get_under(self, x, y):
         target = None
+        self.t -= time.perf_counter()
         for shape in self.visible:
             if isinstance(shape, Group):
                 dx, dy = shape.ox-shape.x, shape.oy-shape.y
@@ -134,6 +137,7 @@ class Context:
                 dx = dy = 0
             if shape.visible and shape.contains(x+dx, y+dy):
                 target = shape
+        self.t += time.perf_counter()
         return target
 
     def click(self, x, y):

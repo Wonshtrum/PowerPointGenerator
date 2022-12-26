@@ -27,7 +27,7 @@ class Backend:
         s = self.scale
         x, y = event.x/s, event.y/s
         if self.context.click(x, y) == Context.EXIT:
-            sys.exit()
+            self.exit(0)
         self.draw()
 
     def clicks(self, event):
@@ -41,12 +41,16 @@ class Backend:
             if status == Context.STOP:
                 self.stop()
             elif status == Context.EXIT:
-                sys.exit()
+                self.exit(0)
             self.can.update()
         self.draw()
     
     def stop(self, event=None):
         self.continuous = False
+
+    def exit(self, code):
+        print(self.context.t)
+        sys.exit(code)
 
     def draw_group(self, shapes, group_x=0, group_y=0, group_alpha=1):
         s = self.scale
@@ -62,7 +66,7 @@ class Backend:
                 outline = "#"+shape.style.outline.color
                 width = shape.style.width
                 stipple = None if alpha == 1 else "gray50"
-                self.can.create_rectangle(x*s, y*s, (x+cx)*s, (y+cy)*s, fill=fill, stipple=stipple, outline=outline, width=width)
+                self.can.create_rectangle(x*s, y*s, (x+cx)*s, (y+cy)*s, fill=fill, stipple=stipple, outline=outline, width=width*s)
                 if shape.text.content is not None:
                     fill = "#"+shape.text.color.color
                     text = shape.text.content
