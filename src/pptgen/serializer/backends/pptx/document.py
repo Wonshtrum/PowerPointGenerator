@@ -1,5 +1,5 @@
-from pptgen.document import Document, Group
-from pptgen.zipper import create_base
+from ....document import Document, Group
+from ...zipper import create_base
 from .timeline import timeline_to_pptx
 
 

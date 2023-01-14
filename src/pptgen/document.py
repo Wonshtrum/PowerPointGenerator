@@ -48,7 +48,7 @@ class Style:
 	def __init__(self, fill=None, outline=None, width=0):
 		self.fill = wrap(fill, Color, Style.DEFAULT_FILL)
 		self.outline = wrap(outline, Color, Style.DEFAULT_OUTLINE)
-		self.width = width*Document.SCALE
+		self.width = int(width*Document.SCALE)
 
 
 class Text:

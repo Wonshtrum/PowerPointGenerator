@@ -23,7 +23,7 @@ class Zipper():
 
 
 def create_base(name):
-	base_path = pkg_resources.resource_filename(__name__, "serializer/pptx/base")
+	base_path = pkg_resources.resource_filename(__name__, "backends/pptx/base")
 	base_path_length = len(base_path)+1
 	base_files = glob.glob(f"{base_path}/**", recursive=True)
 	base_files.extend(glob.glob(f"{base_path}/**/.rels", recursive=True))
