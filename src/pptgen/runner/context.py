@@ -36,13 +36,13 @@ class Context:
             shape.oy = shape.y
             shape.visible = True
 
-        must_be = {}
+        must_be = set()
         for context in slide.timeline.contexts.values():
             for animation in context:
                 id = animation.target
                 if id not in must_be:
+                    must_be.add(id)
                     visible = animation.preset != Animation.ENTR
-                    must_be[id] = visible
                     self.shapes[id].visible = visible
 
     def apply(self, animation):
@@ -63,15 +63,23 @@ class Context:
         if isinstance(animation, FadeOut):
             print("FadeOut")
             if animation.repeat == 1000:
+                shape.alpha = 1
                 print("UNSUPPORTED")
                 sys.exit(1)
             shape.alpha = 1-animation.repeat/1000
         if isinstance(animation, SlideIn):
             print("SlideIn")
+            if animation.repeat != 1000:
+                print("UNSUPPORTED")
+                sys.exit(1)
             shape.x = shape.ox
             shape.y = shape.oy
         if isinstance(animation, SlideOut):
             print("SlideOut")
+            if animation.repeat == 1000:
+                shape.x = shape.ox
+                shape.y = shape.oy
+                return
             if animation.repeat > 10:
                 print("UNSUPPORTED")
                 sys.exit(1)

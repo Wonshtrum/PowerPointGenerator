@@ -1,15 +1,17 @@
 from pptgen import Group
 from pptgen.runner.context import Context
 import tkinter as tk
+import tkinter.messagebox
 import sys
 
 class Backend:
-    def __init__(self, context, width, height, scale, smart_refresh):
+    def __init__(self, context, width, height, scale, smart_refresh, validate_exit):
         self.context = context
         self.width = width
         self.height = height
         self.scale = scale
         self.smart_refresh = smart_refresh
+        self.validate_exit = validate_exit
         self.continuous = False
 
         self.win = tk.Tk()
@@ -50,6 +52,11 @@ class Backend:
 
     def exit(self, code):
         print(self.context.t)
+        self.stop()
+        if self.validate_exit:
+            ok = tk.messagebox.askokcancel(title="tk_runner", message="Exit now?")
+            if not ok:
+                return
         sys.exit(code)
 
     def draw_group(self, shapes, group_x=0, group_y=0, group_alpha=1):
@@ -80,9 +87,9 @@ class Backend:
         self.clear()
         self.draw_group((shape for shape in self.context.visible if shape.visible))
 
-def run(slide, width, height, scale, smart_refresh=False):
+def run(slide, width, height, scale, smart_refresh=False, validate_exit=False):
     context = Context(slide)
-    backend = Backend(context, width, height, scale, smart_refresh)
+    backend = Backend(context, width, height, scale, smart_refresh, validate_exit)
 
     backend.init()
 
