@@ -16,3 +16,8 @@ class Timeline:
 			self.contexts[on.id].extend(animations)
 		else:
 			self.contexts[on.id] = list(animations)
+
+	def move(self, on):
+		if on.id in self.contexts:
+			context = self.contexts.pop(on.id)
+			self.contexts[on.id] = context

@@ -6,8 +6,9 @@ Text.DEFAULT_COLOR = (255, 255, 255)
 Text.DEFAULT_SIZE = 10
 
 D = 4
-W = 1
+W = 0
 Target = lambda s: Place(s, (tx+(s.z-int(s.z))*10*W, ty+int(s.z)*W), relative=False)
+#Target = lambda s: Place(s, (tx+(s.z-int(s.z))*10*W, ty+int(s.z)*W), relative=False)
 GREY = lambda x: (G(x), G(x), G(x))
 G = lambda x: int(256*(x/256)**0.5)
 Z = lambda a,b=0,c=0: a*D+b+(c/10 if a*D+b>=0 else -c/10)
@@ -19,7 +20,7 @@ tl = Timeline()
 
 N_BITS = 8
 N_REGS = 3
-N_BYTES = 64
+N_BYTES = 8
 
 tx = 0
 ty = 10
@@ -30,14 +31,16 @@ oy = 10
 
 #====================================================================
 
-START = Shape(0, 0, w, w, (0, 255, 0))
+START = Shape(0, 0, w, w, (0, 255, 0), text="S")
 tl.add(Place(START), on=START)
 
-GATE_RESET = Shape(1*w, 0, w, w, (255, 200, 0), text="G")
+GATE_RESET = Shape(1*w, 0, w, w, (180, 0, 0), text="G")
+OP_RESET = Shape(2*w, 0, w, w, (180, 0, 0), text="OP")
 tl.add(Place(GATE_RESET), on=GATE_RESET)
+tl.add(Place(OP_RESET), on=OP_RESET)
 
-SET_0 = Shape(2*w, 0, w, w, (255, 0, 0), text=0)
-SET_1 = Shape(3*w, 0, w, w, (0, 255, 0), text=1)
+SET_0 = Shape(3*w, 0, w, w, (255, 0, 0), text=0)
+SET_1 = Shape(4*w, 0, w, w, (0, 255, 0), text=1)
 tl.add(Place(SET_0), on=SET_0)
 tl.add(Place(SET_1), on=SET_1)
 
@@ -56,9 +59,12 @@ class Gate:
     def __init__(self, name, f):
         self.name = name
         self.f = f
-    def call(self, ins):
+    def call(self, ins, wait=False):
         tl.add(Target(GATE_RESET), on=ins)
         tl.add(Target(self.step), on=ins)
+        if wait:
+            tl.add(Disappear(GATE_RESET), on=ins)
+            tl.add(Disappear(self.step), on=ins)
 
 GATES_1 = [
     Gate("id",  lambda a: a),
@@ -77,52 +83,86 @@ GATES_3 = [
 s_ox = ox
 
 ox += 3*(3.5*w)
-TARGET_MEM = Shape(ox, oy+3*w, w, 1, (0, 0, 200))
-PTR = [
-    Shape(ox, oy+(3+i)*w+1, w, w, (G(130+15*i), G(20*i), G(130+15*i)))
-    for i in range(N_BITS)
-]
-TARGET_OPC = Shape(ox+w, oy+3*w, w, 1, (0, 0, 255))
+
+OP_MOD = Shape(ox, oy+3*w, 4*w, 1, (255, 0, 255))
+OP_WAIT = Shape(5*w, 0, w, w, (0, 240, 200), text="#")
+
+TARGET_OPC = Shape(ox+2*w, oy+4*w+1, 2*w, w, (0, 0, 200), text="OPC", z=Z(N_BITS, 1, 0))
+TARGET_PTR = Shape(ox+2*w, oy+3*w+1, 2*w, w, (0, 0, 200), text="PTR", z=Z(N_BITS, 1, 0))
+TARGET_IMM = Shape(ox+2*w, oy+5*w+1, 2*w, w, (0, 0, 200), text="IMM", z=Z(0, 0, 0))
+TARGET_DRF = Shape(ox+2*w, oy+6*w+1, 2*w, w, (0, 0, 200), text="DRF", z=Z(N_BITS, 1, 0))
 OPC = [
-    Shape(ox+w, oy+(3+i)*w+1, w, w, (G(20*i), G(130+15*i), G(130+15*i)), z=Z(i, 0, 0))
+    Shape(ox, oy+(3+i)*w+1, w, w, (G(20*i), G(130+15*i), G(130+15*i)), z=Z(i, 0, 0))
     for i in range(N_BITS)
 ]
+PTR = [
+    Shape(ox+w, oy+(3+i)*w+1, w, w, (G(20+20*i), G(20+20*i), G(145+15*i)))
+    for i in range(N_BITS)
+]
+for bit in (*PTR, *OPC):
+    tl.add(SlideOut(bit, UP), on=OP_RESET)
+    tl.add(SlideOut(bit, UP), on=bit)
+for bit in PTR:
+    tl.add(Target(bit), on=TARGET_PTR)
 for bit in OPC:
     tl.add(Target(bit), on=TARGET_OPC)
-    tl.add(SlideIn(bit, UP), on=bit)
+TARGETS = (TARGET_PTR, TARGET_OPC, TARGET_IMM, TARGET_DRF)
+for t1 in TARGETS:
+    tl.add(Appear(t1, click=True), on=OP_MOD)
+    for t2 in TARGETS:
+        if t1 != t2:
+            tl.add(Disappear(t2), on=OP_MOD)
+
+tl.add(Place(TARGET_OPC), on=TARGET_OPC)
+tl.add(SlideOut(TARGET_PTR, UP), on=TARGET_PTR)
+tl.add(SlideOut(TARGET_IMM, UP), on=TARGET_IMM)
+tl.add(SlideIn(TARGET_OPC, UP), on=TARGET_PTR)
+tl.add(SlideIn(TARGET_OPC, UP), on=TARGET_IMM)
+tl.add(Appear(GATE_RESET), on=TARGET_IMM)
 
 isa_ox = ox
+isa_oy = oy
 ox = s_ox
 
 class Byte:
     def __init__(self, x, y, w, is_i=False, is_j=False, addr=None, reg=None):
         w2 = w/2
-        Shape(x, y, 3*w, w*N_BITS+w, (200, 200, 255), z=Z(N_BITS+1))
+        #self.ip = Shape(x, y, w2, w, (200, 50, 200))
+        if addr is not None:
+            self.ip = Group(
+                    Shape(tx, ty, 4*w, 2*w, (240, 200, 0), text=addr),
+                    Shape(x, y, 3*w, w*N_BITS+w, (255, 250, 120)), z=Z(N_BITS+1),
+                    name="_UPDATE"
+            )
+        Shape(x, y, 3*w, w*N_BITS+w, (230, 230, 255), z=Z(N_BITS+1))
         x += w2
         reset = Shape(x, y+w*N_BITS+w2, w, w2, (255, 0, 255), z=Z(N_BITS))
         tl.add(Place(reset), on=reset)
+        target_d = Shape(x+w, y, w, w2, (255, 0, 255))
+        tl.add(Place(target_d), on=target_d)
+        self.target_d = target_d
         if is_i:
             target_i = Shape(x, y, w2, w2, (0, 0, 200))
             tl.add(Target(reset), on=target_i)
             tl.add(Place(target_i), on=target_i)
             self.target_i = target_i
+            if reg is not None:
+                tl.add(Appear(target_i), on=TARGET_IMM)
+                tl.add(Appear(target_d), on=TARGET_IMM)
         if is_j:
             target_j = Shape(x+w2, y, w2, w2, (0, 0, 255))
             tl.add(Target(reset), on=target_j)
             tl.add(Place(target_j), on=target_j)
             self.target_j = target_j
-        target_d = Shape(x+w, y, w, w2, (255, 0, 255))
-        tl.add(Place(target_d), on=target_d)
-        self.target_d = target_d
-        if is_j and addr is not None:
-            for i,bit in enumerate(PTR):
-                if 1<<i & addr == 0:
-                    tl.add(Disappear(target_d), on=bit)
-                    tl.add(Disappear(target_j), on=bit)
-            tl.add(Appear(target_d), on=TARGET_MEM)
-            tl.add(Appear(target_j), on=TARGET_MEM)
-        y += w2
+            if addr is not None:
+                for i,bit in enumerate(PTR):
+                    if 1<<i & addr == 0:
+                        tl.add(Disappear(target_d), on=bit)
+                        tl.add(Disappear(target_j), on=bit)
+                tl.add(Appear(target_d), on=OP_RESET)
+                tl.add(Appear(target_j), on=OP_RESET)
 
+        y += w2
         self.bits = [None]*N_BITS
         for i in range(N_BITS):
             set_0 = Shape(x+2*w2, y+i*w, w2, w, (255, 0, 0), z=Z(i,2,0))
@@ -131,33 +171,45 @@ class Byte:
             tl.add(Disappear(set_0), on=SET_1)
             tl.add(Target(set_0), on=target_d)
             tl.add(Target(set_1), on=target_d)
-            tl.add(Place(set_0), on=set_0)
-            tl.add(Place(set_1), on=set_0)
             tl.add(Place(set_0), on=set_1)
             tl.add(Place(set_1), on=set_1)
+            tl.add(Place(set_0), on=set_0)
+            tl.add(Place(set_1), on=set_0)
             bit_i = bit_j = None
             if is_i:
                 bit_i = Shape(x, y+i*w, w2, w, GREY(i*10), z=Z(i,0,0))
+                tl.add(SlideIn(bit_i, UP), on=set_1)
                 tl.add(Disappear(I), on=bit_i)
                 tl.add(Target(bit_i), on=target_i)
             if is_j:
                 bit_j = Shape(x+w2, y+i*w, w2, w, GREY(i*10+20), z=Z(i,0,.5))
+                tl.add(SlideIn(bit_j, UP), on=set_1)
                 tl.add(Disappear(J), on=bit_j)
                 tl.add(Target(bit_j), on=target_j)
                 if addr is not None:
-                    tl.add(Disappear(OPC[i]), on=bit_j)
+                    tl.add(Appear(OPC[i]), on=bit_j)
+                tl.add(Appear(PTR[i]), on=bit_j)
             for bit in (bit_i, bit_j):
                 if bit is not None:
                     tl.add(Place(bit), on=bit)
                     tl.add(Place(bit), on=reset)
-                    tl.add(SlideIn(bit, UP), on=set_1)
                     tl.add(Disappear(bit), on=set_0)
+                    pass
+            tl.move(reset)
+            if is_i:
+                tl.move(target_i)
+            if is_j:
+                tl.move(target_j)
             self.bits[i] = (bit_i, bit_j, set_0, set_1)
 
-    def is_dest(self, ins):
+    def is_dest(self, ins, wait=False):
         tl.add(Target(self.target_d), on=ins)
-    def is_src_i(self, ins):
+        if wait:
+            tl.add(Disappear(self.target_d), on=ins)
+    def is_src_i(self, ins, wait=False):
         tl.add(Target(self.target_i), on=ins)
+        if wait:
+            tl.add(Disappear(self.target_i), on=ins)
     def is_src_j(self, ins):
         tl.add(Target(self.target_j), on=ins)
 
@@ -166,6 +218,7 @@ for gate in GATES_1:
     name = gate.name
     f = gate.f
     step = Shape(ox+dx, oy-w, w, w, (0, 0, 0), text=name)
+    tl.add(Appear(step), on=TARGET_IMM)
     gate.step = step
     for IJ in (I, J):
         tl.add(SlideIn(IJ, UP), on=step)
@@ -187,6 +240,7 @@ for gate in GATES_2:
     name = gate.name
     f = gate.f
     step = Shape(ox+dx, oy-w, w, w, (0, 0, 0), text=name)
+    tl.add(Appear(step), on=TARGET_IMM)
     gate.step = step
     for IJ in (I, J):
         tl.add(SlideIn(IJ, UP), on=step)
@@ -211,6 +265,7 @@ for gate in GATES_3:
     name = gate.name
     f = gate.f
     step = Shape(ox+dx, oy-w, w, w, (0, 0, 0), text=name)
+    tl.add(Appear(step), on=TARGET_IMM)
     gate.step = step
     for IJ in (I, J):
         tl.add(SlideIn(IJ, UP), on=step)
@@ -275,29 +330,47 @@ def instruction(ox, oy, name):
     i = instruction_count
     x = i//8
     y = i%8
-    ins = Shape(ox+3*x*w, oy+y*w, 3*w, w, S, text=name)
-    tl.add(Appear(ins), on=TARGET_OPC)
+    ins = Shape(ox+3*x*w, oy+y*w, 3*w, w, S, text=name, z=Z(N_BITS))
+    tl.add(Target(OP_RESET), on=ins)
+    tl.add(SlideIn(ins, UP), on=OP_RESET)
+    tl.add(Target(ins), on=TARGET_OPC)
     for j, bit in enumerate(OPC):
         if i & 1<<j == 0:
             tl.add(Disappear(ins), on=bit)
     instruction_count += 1
     return ins
 
+def immediate(ins):
+    tl.add(Disappear(TARGET_OPC), on=ins)
+    tl.add(SlideIn(TARGET_IMM, UP), on=ins)
+def dereference(ins):
+    tl.add(Disappear(TARGET_OPC), on=ins)
+    tl.add(SlideIn(TARGET_PTR, UP), on=ins)
 def ISA(ox, oy):
     REGS_XY = ((REG_X, "X"), (REG_Y, "Y"))
     REGS_XYA = ((REG_X, "X"), (REG_Y, "Y"), (REG_A, "A"))
     set_carry = lambda ins: tl.add(Disappear(K), on=ins)
     clr_carry = lambda ins: tl.add(Appear(K), on=ins)
     for gate in (*GATES_2, *GATES_3):
-        instruction(ox, oy, f"{gate.name} #")
-        instruction(ox, oy, f"{gate.name} ?")
+        ins = instruction(ox, oy, f"{gate.name} #")
+        REG_A.is_dest(ins, wait=True)
+        REG_A.is_src_i(ins, wait=True)
+        gate.call(ins, wait=True)
+        immediate(ins)
+        ins = instruction(ox, oy, f"{gate.name} ?")
+        REG_A.is_dest(ins, wait=True)
+        REG_A.is_src_i(ins, wait=True)
+        dereference(ins)
         for reg, reg_name in REGS_XY:
             ins = instruction(ox, oy, f"{gate.name} {reg_name}")
             REG_A.is_dest(ins)
             REG_A.is_src_i(ins)
             reg.is_src_j(ins)
             gate.call(ins)
-            instruction(ox, oy, f"{gate.name} ?{reg_name}")
+            ins = instruction(ox, oy, f"{gate.name} ?{reg_name}")
+            REG_A.is_dest(ins, wait=True)
+            REG_A.is_src_i(ins, wait=True)
+            dereference(ins)
         instruction(ox, oy, "")
         instruction(ox, oy, "")
 
@@ -343,14 +416,25 @@ REG_Y = REGS[1]
 REG_A = REGS[2]
 
 R = 32
-ww = 1
+ww = w
+oy += (N_BITS+5)*w
 BYTES = [None]*N_BYTES
 for addr in range(N_BYTES):
     i = addr%R
     j = addr//R
-    BYTES[addr] = Byte(ox+3*i*ww, oy+(N_BITS+5)*w+j*(N_BITS+1.5)*ww, ww, is_j=True, addr=addr)
+    BYTES[addr] = Byte(ox+3*i*ww, oy+j*(N_BITS+1.5)*ww, ww, is_j=True, addr=addr)
+for addr in range(N_BYTES):
+    i = addr%R
+    j = addr//R
+    byte, next_byte = BYTES[addr], BYTES[(addr+1)%N_BYTES]
+    for t in TARGETS:
+        tl.add(Target(t), on=byte.ip)
+    tl.add(Target(OP_RESET), on=byte.ip)
+    tl.add(Disappear(byte.ip), on=byte.ip)
+    tl.add(Target(byte.target_j), on=byte.ip)
+    tl.add(Appear(next_byte.ip), on=byte.ip)
 
-ISA(isa_ox+2*w, oy+3*w+1)
+ISA(isa_ox+4*w, isa_oy+3*w+1)
 
 shapes = Shape.dump()
 slide = Slide("cpu", shapes, tl)
@@ -358,4 +442,4 @@ doc = Document("cpu", [slide])
 #save_to_pptx(doc)
 
 scale = 10/Document.SCALE
-tk_run(slide, Document.WIDTH*scale, Document.HEIGHT*scale, scale, smart_refresh=False, validate_exit=True)
+tk_run(slide, Document.WIDTH*scale, Document.HEIGHT*scale, scale, smart_refresh=True, validate_exit=True)
