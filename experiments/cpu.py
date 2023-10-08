@@ -88,7 +88,7 @@ OP_MOD = Shape(ox, oy+3*w, 4*w, 1, (255, 0, 255))
 
 TARGET_OPC = Shape(ox+2*w, oy+3*w+1, 2*w, w, (0, 0, 200), text="OPC", z=Z(N_BITS, 1, 0))
 TARGET_IMM = Shape(ox+2*w, oy+4*w+1, 2*w, w, (0, 0, 200), text="IMM", z=Z(0, 0, 0))
-TARGET_LD = Shape(ox+2*w, oy+5*w+1, 2*w, w, (0, 0, 200), text="LD", z=Z(N_BITS, 1, 0))
+TARGET_LD = Shape(ox+2*w, oy+5*w+1, 2*w, w, (0, 0, 200), text="LD", z=Z(N_BITS, 1, 1))
 TARGET_ST = Shape(ox+2*w, oy+6*w+1, 2*w, w, (0, 0, 200), text="ST", z=Z(N_BITS, 1, 0))
 #TARGET_DRF = Shape(ox+2*w, oy+6*w+1, 2*w, w, (0, 0, 200), text="DRF", z=Z(N_BITS, 1, 0))
 OPC = [
@@ -118,8 +118,8 @@ tl.add(Place(TARGET_OPC), on=TARGET_OPC)
 tl.add(SlideOut(TARGET_IMM, UP), on=TARGET_IMM)
 tl.add(SlideOut(TARGET_LD, UP), on=TARGET_LD)
 tl.add(SlideOut(TARGET_ST, UP), on=TARGET_ST)
-tl.add(SlideIn(TARGET_OPC, UP), on=TARGET_LD)
-tl.add(SlideIn(TARGET_OPC, UP), on=TARGET_ST)
+tl.add(Appear(TARGET_IMM, UP), on=TARGET_LD)
+#tl.add(Appear(TARGET_IMM, UP), on=TARGET_ST)
 tl.add(SlideIn(TARGET_OPC, UP), on=TARGET_IMM)
 tl.add(Appear(GATE_RESET), on=TARGET_IMM)
 
@@ -333,7 +333,7 @@ PLP, PLA, PLX, PLY,
 instruction_count = 0
 def instruction(ox, oy, name):
     global instruction_count
-    S = Style((0, 0, 0), (255, 255, 255), 0.1)
+    S = Style((0, 0, 0, 0.5), (255, 255, 255), 0.1)
     i = instruction_count
     x = i//8
     y = i%8
@@ -353,6 +353,15 @@ def immediate(ins):
 def load(ins):
     tl.add(Disappear(TARGET_OPC), on=ins)
     tl.add(SlideIn(TARGET_LD, UP), on=ins)
+def store(ins):
+    tl.add(Disappear(TARGET_OPC), on=ins)
+    tl.add(SlideIn(TARGET_ST, UP), on=ins)
+def load_store(ins):
+    tl.add(Disappear(TARGET_OPC), on=ins)
+    tl.add(SlideIn(TARGET_LD, UP), on=ins)
+    tl.add(SlideIn(TARGET_ST, UP), on=ins)
+def fin(ins):
+    ins.style.fill.alpha = 0
 def ISA(ox, oy):
     REGS_XY = ((REG_X, "X"), (REG_Y, "Y"))
     REGS_XYA = ((REG_X, "X"), (REG_Y, "Y"), (REG_A, "A"))
@@ -364,16 +373,20 @@ def ISA(ox, oy):
         REG_A.is_src_i(ins, wait=True)
         gate.call(ins, wait=True)
         immediate(ins)
+        fin(ins)
         ins = instruction(ox, oy, f"{gate.name} ?")
         REG_A.is_dest(ins, wait=True)
         REG_A.is_src_i(ins, wait=True)
+        gate.call(ins, wait=True)
         load(ins)
+        fin(ins)
         for reg, reg_name in REGS_XY:
             ins = instruction(ox, oy, f"{gate.name} {reg_name}")
             REG_A.is_dest(ins)
             REG_A.is_src_i(ins)
             reg.is_src_j(ins)
             gate.call(ins)
+            fin(ins)
             ins = instruction(ox, oy, f"{gate.name} ?{reg_name}")
             REG_A.is_dest(ins, wait=True)
             REG_A.is_src_i(ins, wait=True)
@@ -389,7 +402,9 @@ def ISA(ox, oy):
             gate.call(ins)
             if op_name != "NOT":
                 set_carry(ins)
+            fin(ins)
         ins = instruction(ox, oy, f"{op_name} ?")
+        load_store(ins)
         for reg, reg_name in REGS_XY:
             ins = instruction(ox, oy, f"{op_name} ?{reg_name}")
         instruction(ox, oy, "")
@@ -403,10 +418,13 @@ def ISA(ox, oy):
             dst.is_dest(ins)
             src.is_src_i(ins)
             mv.call(ins)
+            fin(ins)
     ins = instruction(ox, oy, "CLC")
     clr_carry(ins)
+    fin(ins)
     ins = instruction(ox, oy, "SEC")
     set_carry(ins)
+    fin(ins)
 
 for i in range(N_BITS):
     step = Shape(0, w, w, w, (200, 255, 200), z=Z(i, 1))
