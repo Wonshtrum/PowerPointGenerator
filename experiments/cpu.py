@@ -370,9 +370,13 @@ def immediate(ins, wait=True):
         tl.add(SlideIn(TARGET_IMM, UP), on=ins)
     else:
         tl.add(Appear(TARGET_IMM), on=ins)
-def load(ins):
+def load(ins, wait=True):
     tl.add(Disappear(TARGET_OPC), on=ins)
-    tl.add(SlideIn(TARGET_LD, UP), on=ins)
+    if wait:
+        tl.add(SlideIn(TARGET_LD, UP), on=ins)
+    else:
+        tl.add(Target(D_RESET), on=ins)
+        tl.add(Appear(TARGET_LD), on=ins)
 def store(ins):
     tl.add(Disappear(TARGET_OPC), on=ins)
     tl.add(SlideIn(TARGET_ST, UP), on=ins)
@@ -388,14 +392,14 @@ def ISA(ox, oy):
         ins = instruction(ox, oy, f"{gate.name} #")
         REG_A.is_dest(ins, wait=True)
         REG_A.is_src_i(ins, wait=True)
-        gate.call(ins, wait=True)
         immediate(ins)
+        gate.call(ins, wait=True)
         fin(ins)
         ins = instruction(ox, oy, f"{gate.name} ?")
         REG_A.is_dest(ins, wait=True)
         REG_A.is_src_i(ins, wait=True)
-        gate.call(ins, wait=True)
         load(ins)
+        gate.call(ins, wait=True)
         fin(ins)
         for reg, reg_name in REGS_XY:
             ins = instruction(ox, oy, f"{gate.name} {reg_name}")
@@ -407,7 +411,10 @@ def ISA(ox, oy):
             ins = instruction(ox, oy, f"{gate.name} ?{reg_name}")
             REG_A.is_dest(ins, wait=True)
             REG_A.is_src_i(ins, wait=True)
-            load(ins)
+            reg.is_src_j(ins)
+            load(ins, wait=False)
+            gate.call(ins, wait=True)
+            fin(ins)
         instruction(ox, oy, "")
         instruction(ox, oy, "")
 
@@ -416,14 +423,15 @@ def ISA(ox, oy):
             ins = instruction(ox, oy, f"{op_name} {reg_name}")
             reg.is_dest(ins)
             reg.is_src_j(ins)
-            gate.call(ins)
+            immediate(ins, wait=False)
             set_carry(ins, carry)
-            immediate(ins, False)
+            gate.call(ins)
             fin(ins)
         ins = instruction(ox, oy, f"{op_name} ?")
-        gate.call(ins, wait=True)
-        set_carry(ins, carry)
         load_store(ins)
+        set_carry(ins, carry)
+        gate.call(ins, wait=True)
+        fin(ins)
         for reg, reg_name in REGS_XY:
             ins = instruction(ox, oy, f"{op_name} ?{reg_name}")
             set_carry(ins, carry)
