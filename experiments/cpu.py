@@ -43,10 +43,12 @@ GATE_RESET = Shape(3*w, 0, w, w, (180, 0, 0), text="G")
 OP_RESET = Shape(4*w, 0, w, w, (180, 0, 0), text="OP")
 J_RESET = Shape(5*w, 0, w, w, (180, 0, 0), text="J")
 D_RESET = Shape(6*w, 0, w, w, (180, 0, 0), text="D")
+IP_RESET = Shape(7*w, 0, w, w, (180, 0, 0), text="IP")
 tl.add(Place(GATE_RESET), on=GATE_RESET)
 tl.add(Place(OP_RESET), on=OP_RESET)
 tl.add(Place(J_RESET), on=J_RESET)
 tl.add(Place(D_RESET), on=D_RESET)
+tl.add(Place(IP_RESET), on=IP_RESET)
 
 I = Shape(ox, oy+0*w, 3*w, w, GREY(180), z=Z(0,-1,0))
 J = Shape(ox, oy+1*w, 3*w, w, GREY(200), z=Z(0,-1,.5))
@@ -96,25 +98,36 @@ TARGET_IMM = Shape(ox+2*w, oy+4*w+1, 2*w, w, (0, 0, 200), text="IMM", z=Z(0, 0, 
 TARGET_LD = Shape(ox+2*w, oy+5*w+1, 2*w, w, (0, 0, 200), text="LD", z=Z(N_BITS, 1, 0))
 TARGET_ST = Shape(ox+2*w, oy+6*w+1, 2*w, w, (0, 0, 200), text="ST", z=Z(N_BITS, 1, 0))
 TARGET_LS = Shape(ox+2*w, oy+7*w+1, 2*w, w, (0, 0, 200), text="LS", z=Z(N_BITS, 1, 0))
+TARGET_IP = Shape(ox+2*w, oy+8*w+1, 2*w, w, (0, 0, 200), text="IP", z=Z(N_BITS, 1, 0))
+w2 = w/2
 OPC = [
-    Shape(ox, oy+(3+i)*w+1, w, w, (G(20*i), G(130+15*i), G(130+15*i)), z=Z(i, 0, 0))
+    Shape(ox, oy+(3+i)*w+1, w2, w, (G(20*i), G(130+15*i), G(130+15*i)), z=Z(i, 0, 0))
     for i in range(N_BITS)
 ]
 PTR = [
-    Shape(ox+w, oy+(3+i)*w+1, w, w, (G(20+20*i), G(20+20*i), G(145+15*i)))
+    Shape(ox+w2, oy+(3+i)*w+1, w2, w, (G(20+20*i), G(20+20*i), G(145+15*i)))
+    for i in range(N_BITS)
+]
+RIP = [
+    Shape(ox+w, oy+(3+i)*w+1, w2, w, (G(110+20*i), G(90+15*i), 0))
     for i in range(N_BITS)
 ]
 for bit in (*PTR, *OPC):
     tl.add(SlideOut(bit, UP), on=J_RESET)
     tl.add(SlideOut(bit, UP), on=D_RESET)
     tl.add(SlideOut(bit, UP), on=bit)
+for bit in RIP:
+    tl.add(SlideOut(bit, UP), on=IP_RESET)
+    tl.add(SlideOut(bit, UP), on=J_RESET)
+    tl.add(SlideOut(bit, UP), on=bit)
+    tl.add(Target(bit), on=TARGET_IP)
 for bit in PTR:
     tl.add(Target(bit), on=TARGET_LD)
     tl.add(Target(bit), on=TARGET_ST)
     tl.add(Target(bit), on=TARGET_LS)
 for bit in OPC:
     tl.add(Target(bit), on=TARGET_OPC)
-TARGETS = (TARGET_OPC, TARGET_IMM, TARGET_LD, TARGET_ST, TARGET_LS)
+TARGETS = (TARGET_OPC, TARGET_IMM, TARGET_LD, TARGET_ST, TARGET_LS, TARGET_IP)
 for t1 in TARGETS:
     tl.add(Appear(t1, click=True), on=OP_MOD)
     for t2 in TARGETS:
@@ -126,10 +139,12 @@ tl.add(Disappear(TARGET_IMM), on=TARGET_IMM)
 tl.add(Disappear(TARGET_LD, UP), on=TARGET_LD)
 tl.add(Disappear(TARGET_ST, UP), on=TARGET_ST)
 tl.add(Disappear(TARGET_LS, UP), on=TARGET_LS)
+tl.add(Disappear(TARGET_IP, UP), on=TARGET_IP)
 tl.add(Appear(TARGET_IMM, UP), on=TARGET_LD)
 tl.add(Appear(TARGET_IMM, UP), on=TARGET_LS)
 #tl.add(Appear(TARGET_IMM, UP), on=TARGET_ST)
 tl.add(SlideIn(TARGET_OPC, UP), on=TARGET_IMM)
+tl.add(SlideIn(TARGET_OPC, UP), on=TARGET_IP)
 tl.add(Appear(GATE_RESET), on=TARGET_IMM)
 
 isa_ox = ox
@@ -146,6 +161,11 @@ class Byte:
                     Shape(x, y, 3*w, w*N_BITS+w, (255, 250, 120)), z=Z(N_BITS+1),
                     name="_UPDATE"
             )
+            target_ip = Shape(x, y, w2, w, (240, 200, 0))
+            tl.add(SlideIn(target_ip, UP), on=IP_RESET)
+            tl.add(Disappear(self.ip), on=TARGET_IP)
+            tl.add(Appear(self.ip), on=target_ip)
+            self.target_ip = target_ip
         Shape(x, y, 3*w, w*N_BITS+w, (230, 230, 255), z=Z(N_BITS+1))
         x += w2
         reset = Shape(x, y+w*N_BITS+w2, w, w2, (255, 0, 255), z=Z(N_BITS))
@@ -167,18 +187,21 @@ class Byte:
             tl.add(Place(target_j), on=target_j)
             self.target_j = target_j
             if addr is not None:
-                for i,bit in enumerate(PTR):
+                for i in range(N_BITS):
                     if 1<<i & addr == 0:
-                        tl.add(Disappear(target_d), on=bit)
-                        tl.add(Disappear(target_j), on=bit)
+                        tl.add(Disappear(target_d), on=PTR[i])
+                        tl.add(Disappear(target_j), on=PTR[i])
+                        tl.add(Disappear(target_ip), on=RIP[i])
                 tl.add(Target(D_RESET), on=target_d)
                 tl.add(Target(J_RESET), on=target_j)
+                tl.add(Target(IP_RESET), on=target_ip)
                 tl.add(SlideIn(target_d, UP), on=D_RESET)
                 tl.add(SlideIn(target_j, UP), on=J_RESET)
                 tl.add(Target(target_d), on=TARGET_ST)
                 tl.add(Target(target_j), on=TARGET_LD)
                 tl.add(Target(target_d), on=TARGET_LS)
                 tl.add(Target(target_j), on=TARGET_LS)
+                tl.add(Target(target_ip), on=TARGET_IP)
 
         y += w2
         self.bits = [None]*N_BITS
@@ -204,6 +227,7 @@ class Byte:
                 tl.add(SlideIn(bit_j, UP), on=set_1)
                 tl.add(Disappear(J), on=bit_j)
                 tl.add(Target(bit_j), on=target_j)
+                tl.add(Appear(RIP[i]), on=bit_j)
                 if addr is not None:
                     tl.add(Appear(OPC[i]), on=bit_j)
                 tl.add(Appear(PTR[i]), on=bit_j)
@@ -383,6 +407,13 @@ def store(ins):
 def load_store(ins):
     tl.add(Disappear(TARGET_OPC), on=ins)
     tl.add(SlideIn(TARGET_LS, UP), on=ins)
+def jump(ins, wait=True):
+    tl.add(Disappear(TARGET_OPC), on=ins)
+    if wait:
+        tl.add(SlideIn(TARGET_IP, UP), on=ins)
+    else:
+        tl.add(Target(IP_RESET), on=ins)
+        tl.add(Appear(TARGET_IP), on=ins)
 def fin(ins):
     ins.style.fill.alpha = 0
 def ISA(ox, oy):
@@ -453,6 +484,14 @@ def ISA(ox, oy):
     ins = instruction(ox, oy, "SEC")
     set_carry(ins)
     fin(ins)
+    ins = instruction(ox, oy, "JMP")
+    jump(ins)
+    fin(ins)
+    for reg, reg_name in REGS_XYA:
+        ins = instruction(ox, oy, f"JP{reg_name}")
+        reg.is_src_j(ins)
+        jump(ins, wait=False)
+        fin(ins)
 
 for i in range(N_BITS):
     step = Shape(0, w, w, w, (200, 255, 200, 0.5), z=Z(i, 1, 1))
@@ -476,15 +515,12 @@ for addr in range(N_BYTES):
     i = addr%R
     j = addr//R
     BYTES[addr] = Byte(ox+3*i*ww, oy+j*(N_BITS+1.5)*ww, ww, is_j=True, addr=addr)
-for byte in BYTES:
-    byte.target_d
 for addr in range(N_BYTES):
     i = addr%R
     j = addr//R
     byte, next_byte = BYTES[addr], BYTES[(addr+1)%N_BYTES]
     for t in TARGETS:
         tl.add(Target(t), on=byte.ip)
-    #tl.add(Target(OP_RESET), on=byte.ip)
     tl.add(Disappear(byte.ip), on=byte.ip)
     tl.add(Target(byte.target_j), on=byte.ip)
     tl.add(Appear(next_byte.ip), on=byte.ip)
