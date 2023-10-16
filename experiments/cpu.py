@@ -50,14 +50,19 @@ tl.add(Place(J_RESET), on=J_RESET)
 tl.add(Place(D_RESET), on=D_RESET)
 tl.add(Place(IP_RESET), on=IP_RESET)
 
-I = Shape(ox, oy+0*w, 3*w, w, GREY(180), z=Z(0,-1,0))
-J = Shape(ox, oy+1*w, 3*w, w, GREY(200), z=Z(0,-1,.5))
-K = Shape(ox, oy+2*w, 3*w, w, GREY(220), z=Z(0,-1,1))
+I = Shape(ox+0*w, oy+w, w, w, GREY(180), z=Z(0,-1,0))
+J = Shape(ox+1*w, oy+w, w, w, GREY(200), z=Z(0,-1,.5))
+K = Shape(ox+2*w, oy+w, w, w, GREY(220), z=Z(0,-1,1))
 for IJK in (I, J, K):
     tl.add(Target(IJK), on=START)
     tl.add(Place(IJK), on=IJK)
     if IJK != K:
         tl.add(Appear(IJK), on=GATE_RESET)
+
+ZF = Shape(ox, oy, 3*w, w, (250, 0, 0), z=Z(0,-1,0))
+tl.add(Place(ZF), on=ZF)
+tl.add(Appear(ZF), on=GATE_RESET)
+tl.add(Disappear(ZF), on=SET_1)
 
 #====================================================================
 
@@ -87,6 +92,8 @@ GATES_3 = [
     Gate("isub", lambda b,a,c: (a ^ b ^ c, (not a) & b | c & ((not a) | b))),
 ]
 
+#====================================================================
+
 s_ox = ox
 
 ox += 3*(3.5*w)
@@ -99,6 +106,7 @@ TARGET_LD = Shape(ox+2*w, oy+5*w+1, 2*w, w, (0, 0, 200), text="LD", z=Z(N_BITS, 
 TARGET_ST = Shape(ox+2*w, oy+6*w+1, 2*w, w, (0, 0, 200), text="ST", z=Z(N_BITS, 1, 0))
 TARGET_LS = Shape(ox+2*w, oy+7*w+1, 2*w, w, (0, 0, 200), text="LS", z=Z(N_BITS, 1, 0))
 TARGET_IP = Shape(ox+2*w, oy+8*w+1, 2*w, w, (0, 0, 200), text="IP", z=Z(N_BITS, 1, 0))
+TARGET_NOP = Shape(ox+2*w, oy+9*w+1, 2*w, w, (0, 0, 200), text="NOP", z=Z(N_BITS, 1, 0))
 w2 = w/2
 OPC = [
     Shape(ox, oy+(3+i)*w+1, w2, w, (G(20*i), G(130+15*i), G(130+15*i)), z=Z(i, 0, 0))
@@ -127,7 +135,7 @@ for bit in PTR:
     tl.add(Target(bit), on=TARGET_LS)
 for bit in OPC:
     tl.add(Target(bit), on=TARGET_OPC)
-TARGETS = (TARGET_OPC, TARGET_IMM, TARGET_LD, TARGET_ST, TARGET_LS, TARGET_IP)
+TARGETS = (TARGET_OPC, TARGET_IMM, TARGET_LD, TARGET_ST, TARGET_LS, TARGET_IP, TARGET_NOP)
 for t1 in TARGETS:
     tl.add(Appear(t1, click=True), on=OP_MOD)
     for t2 in TARGETS:
@@ -136,20 +144,41 @@ for t1 in TARGETS:
 
 tl.add(Place(TARGET_OPC), on=TARGET_OPC)
 tl.add(Disappear(TARGET_IMM), on=TARGET_IMM)
-tl.add(Disappear(TARGET_LD, UP), on=TARGET_LD)
-tl.add(Disappear(TARGET_ST, UP), on=TARGET_ST)
-tl.add(Disappear(TARGET_LS, UP), on=TARGET_LS)
-tl.add(Disappear(TARGET_IP, UP), on=TARGET_IP)
-tl.add(Appear(TARGET_IMM, UP), on=TARGET_LD)
-tl.add(Appear(TARGET_IMM, UP), on=TARGET_LS)
+tl.add(Disappear(TARGET_LD), on=TARGET_LD)
+tl.add(Disappear(TARGET_ST), on=TARGET_ST)
+tl.add(Disappear(TARGET_LS), on=TARGET_LS)
+tl.add(Disappear(TARGET_IP), on=TARGET_IP)
+tl.add(Disappear(TARGET_NOP), on=TARGET_NOP)
+tl.add(Appear(TARGET_IMM), on=TARGET_LD)
+tl.add(Appear(TARGET_IMM), on=TARGET_LS)
 #tl.add(Appear(TARGET_IMM, UP), on=TARGET_ST)
 tl.add(SlideIn(TARGET_OPC, UP), on=TARGET_IMM)
 tl.add(SlideIn(TARGET_OPC, UP), on=TARGET_IP)
+tl.add(SlideIn(TARGET_OPC, UP), on=TARGET_NOP)
 tl.add(Appear(GATE_RESET), on=TARGET_IMM)
 
 isa_ox = ox
 isa_oy = oy
 ox = s_ox
+
+#====================================================================
+
+BCS = Shape(ox+3*w, oy+0*w, w, w, (0, 255, 0), text="CF")
+BCC = Shape(ox+4*w, oy+0*w, w, w, (255, 0, 0), text="CF")
+BEQ = Shape(ox+3*w, oy+1*w, w, w, (0, 255, 0), text="ZF")
+BNE = Shape(ox+4*w, oy+1*w, w, w, (255, 0, 0), text="ZF")
+
+for _ in (BCS, BCC, BEQ, BNE):
+    tl.add(Disappear(_), on=_)
+    tl.add(SlideIn(TARGET_NOP, UP), on=_)
+    tl.add(Disappear(TARGET_IP), on=_)
+
+tl.add(Disappear(BCC), on=K)
+tl.add(Appear(BCS), on=K)
+tl.add(Disappear(BEQ), on=ZF)
+tl.add(Appear(BNE), on=ZF)
+
+#====================================================================
 
 class Byte:
     def __init__(self, x, y, w, is_i=False, is_j=False, addr=None, reg=None):
@@ -255,7 +284,7 @@ class Byte:
     def is_src_j(self, ins):
         tl.add(Target(self.target_j), on=ins)
 
-dx = 4*w
+dx = 6*w
 for gate in GATES_1:
     name = gate.name
     f = gate.f
@@ -335,6 +364,7 @@ for gate in GATES_3:
                     tl.add(SlideIn(K, UP), on=case)
     dx += 5*w
 
+#====================================================================
 
 """
 NOP,
@@ -414,6 +444,17 @@ def jump(ins, wait=True):
     else:
         tl.add(Target(IP_RESET), on=ins)
         tl.add(Appear(TARGET_IP), on=ins)
+def branch(ins, b):
+    for (_, f, v) in ((BCC, K, False), (BCS, K, True), (BEQ, ZF, False), (BNE, ZF, True)):
+        if _ == b:
+            if not v:
+                tl.add(Appear(b), on=ins)
+            else:
+                tl.add(Disappear(b), on=ins)
+            tl.add(Target(f), on=ins)
+            tl.add(Target(b), on=ins)
+        else:
+            tl.add(SlideIn(_, UP), on=ins)
 def fin(ins):
     ins.style.fill.alpha = 0
 def ISA(ox, oy):
@@ -484,6 +525,7 @@ def ISA(ox, oy):
     ins = instruction(ox, oy, "SEC")
     set_carry(ins)
     fin(ins)
+
     ins = instruction(ox, oy, "JMP")
     jump(ins)
     fin(ins)
@@ -492,6 +534,24 @@ def ISA(ox, oy):
         reg.is_src_j(ins)
         jump(ins, wait=False)
         fin(ins)
+    ins = instruction(ox, oy, "BCC")
+    branch(ins, BCC)
+    jump(ins)
+    fin(ins)
+    ins = instruction(ox, oy, "BCS")
+    branch(ins, BCS)
+    jump(ins)
+    fin(ins)
+    ins = instruction(ox, oy, "BEQ")
+    branch(ins, BEQ)
+    jump(ins)
+    fin(ins)
+    ins = instruction(ox, oy, "BNE")
+    branch(ins, BNE)
+    jump(ins)
+    fin(ins)
+
+#====================================================================
 
 for i in range(N_BITS):
     step = Shape(0, w, w, w, (200, 255, 200, 0.5), z=Z(i, 1, 1))
