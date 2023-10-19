@@ -151,7 +151,7 @@ tl.add(Disappear(TARGET_IP), on=TARGET_IP)
 tl.add(Disappear(TARGET_NOP), on=TARGET_NOP)
 tl.add(Appear(TARGET_IMM), on=TARGET_LD)
 tl.add(Appear(TARGET_IMM), on=TARGET_LS)
-#tl.add(Appear(TARGET_IMM, UP), on=TARGET_ST)
+tl.add(Appear(TARGET_IMM), on=TARGET_ST)
 tl.add(SlideIn(TARGET_OPC, UP), on=TARGET_IMM)
 tl.add(SlideIn(TARGET_OPC, UP), on=TARGET_IP)
 tl.add(SlideIn(TARGET_OPC, UP), on=TARGET_NOP)
@@ -163,15 +163,17 @@ ox = s_ox
 
 #====================================================================
 
-BCS = Shape(ox+3*w, oy+0*w, w, w, (0, 255, 0), text="CF")
-BCC = Shape(ox+4*w, oy+0*w, w, w, (255, 0, 0), text="CF")
+BCC = Shape(ox+3*w, oy+0*w, w, w, (0, 255, 0), text="CF")
+BCS = Shape(ox+4*w, oy+0*w, w, w, (255, 0, 0), text="CF")
 BEQ = Shape(ox+3*w, oy+1*w, w, w, (0, 255, 0), text="ZF")
 BNE = Shape(ox+4*w, oy+1*w, w, w, (255, 0, 0), text="ZF")
 
-for _ in (BCS, BCC, BEQ, BNE):
-    tl.add(Disappear(_), on=_)
-    tl.add(SlideIn(TARGET_NOP, UP), on=_)
-    tl.add(Disappear(TARGET_IP), on=_)
+for b in (BCS, BCC, BEQ, BNE):
+    tl.add(SlideIn(TARGET_NOP, UP), on=b)
+    tl.add(Disappear(TARGET_IP), on=b)
+    tl.add(SlideIn(b, UP), on=b)
+    tl.add(SlideIn(b, UP), on=TARGET_IP)
+    tl.add(SlideIn(b, UP), on=TARGET_NOP)
 
 tl.add(Disappear(BCC), on=K)
 tl.add(Appear(BCS), on=K)
@@ -221,8 +223,6 @@ class Byte:
                         tl.add(Disappear(target_d), on=PTR[i])
                         tl.add(Disappear(target_j), on=PTR[i])
                         tl.add(Disappear(target_ip), on=RIP[i])
-                tl.add(Target(D_RESET), on=target_d)
-                tl.add(Target(J_RESET), on=target_j)
                 tl.add(Target(IP_RESET), on=target_ip)
                 tl.add(SlideIn(target_d, UP), on=D_RESET)
                 tl.add(SlideIn(target_j, UP), on=J_RESET)
@@ -231,6 +231,10 @@ class Byte:
                 tl.add(Target(target_d), on=TARGET_LS)
                 tl.add(Target(target_j), on=TARGET_LS)
                 tl.add(Target(target_ip), on=TARGET_IP)
+            tl.add(Target(D_RESET), on=target_d)
+            tl.add(Target(J_RESET), on=target_j)
+            if reg is not None:
+                tl.add(Appear(target_j), on=TARGET_IMM)
 
         y += w2
         self.bits = [None]*N_BITS
@@ -281,8 +285,10 @@ class Byte:
         tl.add(Target(self.target_i), on=ins)
         if wait:
             tl.add(Disappear(self.target_i), on=ins)
-    def is_src_j(self, ins):
+    def is_src_j(self, ins, wait=False):
         tl.add(Target(self.target_j), on=ins)
+        if wait:
+            tl.add(Disappear(self.target_j), on=ins)
 
 dx = 6*w
 for gate in GATES_1:
@@ -368,9 +374,8 @@ for gate in GATES_3:
 
 """
 NOP,
-
-LDX #, LDY #, LDA #, LDX ?, LDY ?, LDA ?, LDX ?Y, LDY ?X, LDA ?X, LDA ?Y,
-STX ?, STY ?, STA ?, STX ?Y, STY ?X, STA ?X, STA ?Y,
+                     STX ?, STY ?, STA ?, STA ?X, STA ?Y,
+LDX #, LDY #, LDA #, LDX ?, LDY ?, LDA ?, LDA ?X, LDA ?Y,
 
 CPX #, CPY #, CPA #, CPX ?, CPY ?, CPA ?, CPA ?X, CPA ?Y,
 
@@ -402,7 +407,7 @@ def instruction(ox, oy, name):
     i = instruction_count
     x = i//8
     y = i%8
-    ins = Shape(ox+3*x*w, oy+y*w, 3*w, w, S, text=name, z=Z(N_BITS))
+    ins = Shape(ox+2.5*x*w, oy+y*w, 2.5*w, w, S, text=name, z=Z(N_BITS))
     tl.add(Target(OP_RESET), on=ins)
     tl.add(SlideIn(ins, UP), on=OP_RESET)
     tl.add(Target(ins), on=TARGET_OPC)
@@ -431,12 +436,20 @@ def load(ins, wait=True):
     else:
         tl.add(Target(D_RESET), on=ins)
         tl.add(Appear(TARGET_LD), on=ins)
-def store(ins):
+def store(ins, wait=True):
     tl.add(Disappear(TARGET_OPC), on=ins)
-    tl.add(SlideIn(TARGET_ST, UP), on=ins)
-def load_store(ins):
+    if wait:
+        tl.add(SlideIn(TARGET_ST, UP), on=ins)
+    else:
+        tl.add(Target(D_RESET), on=ins)
+        tl.add(Appear(TARGET_ST), on=ins)
+def load_store(ins, wait=True):
     tl.add(Disappear(TARGET_OPC), on=ins)
-    tl.add(SlideIn(TARGET_LS, UP), on=ins)
+    if wait:
+        tl.add(SlideIn(TARGET_LS, UP), on=ins)
+    else:
+        tl.add(Target(D_RESET), on=ins)
+        tl.add(Appear(TARGET_LS), on=ins)
 def jump(ins, wait=True):
     tl.add(Disappear(TARGET_OPC), on=ins)
     if wait:
@@ -445,22 +458,24 @@ def jump(ins, wait=True):
         tl.add(Target(IP_RESET), on=ins)
         tl.add(Appear(TARGET_IP), on=ins)
 def branch(ins, b):
-    for (_, f, v) in ((BCC, K, False), (BCS, K, True), (BEQ, ZF, False), (BNE, ZF, True)):
-        if _ == b:
-            if not v:
-                tl.add(Appear(b), on=ins)
-            else:
-                tl.add(Disappear(b), on=ins)
-            tl.add(Target(f), on=ins)
-            tl.add(Target(b), on=ins)
-        else:
-            tl.add(SlideIn(_, UP), on=ins)
+    f, v = { BCC: (K, False), BCS: (K, True), BEQ: (ZF, False), BNE: (ZF, True) }[b]
+    if v:
+        tl.add(Disappear(b), on=ins)
+    tl.add(Target(b), on=ins)
+    tl.add(Target(f), on=ins)
 def fin(ins):
     ins.style.fill.alpha = 0
 def ISA(ox, oy):
     REGS_XY = ((REG_X, "X"), (REG_Y, "Y"))
     REGS_XYA = ((REG_X, "X"), (REG_Y, "Y"), (REG_A, "A"))
     for gate in (*GATES_2, *GATES_3):
+        for reg, reg_name in REGS_XY:
+            ins = instruction(ox, oy, f"{gate.name} {reg_name}")
+            REG_A.is_dest(ins)
+            REG_A.is_src_i(ins)
+            reg.is_src_j(ins)
+            gate.call(ins)
+            fin(ins)
         ins = instruction(ox, oy, f"{gate.name} #")
         REG_A.is_dest(ins, wait=True)
         REG_A.is_src_i(ins, wait=True)
@@ -474,12 +489,6 @@ def ISA(ox, oy):
         gate.call(ins, wait=True)
         fin(ins)
         for reg, reg_name in REGS_XY:
-            ins = instruction(ox, oy, f"{gate.name} {reg_name}")
-            REG_A.is_dest(ins)
-            REG_A.is_src_i(ins)
-            reg.is_src_j(ins)
-            gate.call(ins)
-            fin(ins)
             ins = instruction(ox, oy, f"{gate.name} ?{reg_name}")
             REG_A.is_dest(ins, wait=True)
             REG_A.is_src_i(ins, wait=True)
@@ -506,18 +515,36 @@ def ISA(ox, oy):
         fin(ins)
         for reg, reg_name in REGS_XY:
             ins = instruction(ox, oy, f"{op_name} ?{reg_name}")
+            reg.is_src_j(ins)
+            load_store(ins, wait=False)
+            gate.call(ins, wait=True)
             set_carry(ins, carry)
+            fin(ins)
         instruction(ox, oy, "")
         instruction(ox, oy, "")
 
     mv = GATES_1[0]
+    cmp = GATES_3[2]
+    test = GATES_2[2]
     for src, src_name in REGS_XYA:
         for dst, dst_name in REGS_XYA:
             if src == dst: continue
-            ins = instruction(ox, oy, f"mv {src_name}, {dst_name}")
+            ins = instruction(ox, oy, f"T{src_name}{dst_name}")
             dst.is_dest(ins)
             src.is_src_j(ins)
             mv.call(ins)
+            fin(ins)
+    instruction(ox, oy, "")
+    instruction(ox, oy, "")
+
+    for r1, r1_name in REGS_XYA:
+        for r2, r2_name in REGS_XYA:
+            if r1 == r2: continue
+            ins = instruction(ox, oy, f"CP{r1_name}{r2_name}")
+            r1.is_src_i(ins)
+            r2.is_src_j(ins)
+            clr_carry(ins)
+            cmp.call(ins)
             fin(ins)
     ins = instruction(ox, oy, "CLC")
     clr_carry(ins)
@@ -525,6 +552,70 @@ def ISA(ox, oy):
     ins = instruction(ox, oy, "SEC")
     set_carry(ins)
     fin(ins)
+
+    for reg, reg_name in REGS_XYA:
+        ins = instruction(ox, oy, f"CP{reg_name} #")
+        reg.is_src_i(ins, wait=True)
+        immediate(ins)
+        clr_carry(ins)
+        cmp.call(ins, wait=True)
+        fin(ins)
+    for reg, reg_name in REGS_XYA:
+        ins = instruction(ox, oy, f"CP{reg_name} ?")
+        reg.is_src_i(ins, wait=True)
+        load(ins)
+        clr_carry(ins)
+        cmp.call(ins, wait=True)
+        fin(ins)
+    for reg, reg_name in REGS_XY:
+        ins = instruction(ox, oy, f"CPA ?{reg_name}")
+        REG_A.is_src_i(ins, wait=True)
+        reg.is_src_j(ins)
+        load(ins, wait=False)
+        cmp.call(ins, wait=True)
+        fin(ins)
+
+    for reg, reg_name in REGS_XYA:
+        ins = instruction(ox, oy, f"test {reg_name}")
+        reg.is_src_i(ins)
+        reg.is_src_j(ins)
+        clr_carry(ins)
+        test.call(ins)
+        fin(ins)
+
+    for reg, reg_name in REGS_XYA:
+        ins = instruction(ox, oy, f"ST{reg_name} ?")
+        reg.is_src_j(ins, wait=True)
+        store(ins)
+        mv.call(ins, wait=True)
+        fin(ins)
+    for reg, reg_name in REGS_XY:
+        ins = instruction(ox, oy, f"STA ?{reg_name}")
+        REG_A.is_src_j(ins, wait=True)
+        reg.is_src_j(ins)
+        store(ins, wait=False)
+        mv.call(ins, wait=True)
+        fin(ins)
+
+    for reg, reg_name in REGS_XYA:
+        ins = instruction(ox, oy, f"LD{reg_name} #")
+        reg.is_dest(ins, wait=True)
+        immediate(ins)
+        mv.call(ins, wait=True)
+        fin(ins)
+    for reg, reg_name in REGS_XYA:
+        ins = instruction(ox, oy, f"LD{reg_name} ?")
+        reg.is_dest(ins, wait=True)
+        load(ins)
+        mv.call(ins, wait=True)
+        fin(ins)
+    for reg, reg_name in REGS_XY:
+        ins = instruction(ox, oy, f"LDA ?{reg_name}")
+        REG_A.is_dest(ins, wait=True)
+        reg.is_src_j(ins)
+        load(ins, wait=False)
+        mv.call(ins, wait=True)
+        fin(ins)
 
     ins = instruction(ox, oy, "JMP")
     jump(ins)
@@ -586,6 +677,15 @@ for addr in range(N_BYTES):
     tl.add(Appear(next_byte.ip), on=byte.ip)
 
 ISA(isa_ox+4*w, isa_oy+3*w+1)
+
+tl.add(Appear(TARGET_IMM))
+tl.add(Target(TARGET_IMM))
+tl.add(Target(TARGET_IP))
+tl.add(Target(D_RESET))
+tl.add(Target(J_RESET))
+tl.add(Target(IP_RESET))
+tl.add(Target(OP_RESET))
+tl.add(Target(SET_0))
 
 shapes = Shape.dump()
 slide = Slide("cpu", shapes, tl)
