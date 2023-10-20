@@ -20,7 +20,7 @@ tl = Timeline()
 
 N_BITS = 8
 N_REGS = 3
-N_BYTES = 8
+N_BYTES = 16
 
 tx = 0
 ty = 10
@@ -400,20 +400,32 @@ BCC, BCS, BEQ, BNE,
 PHP, PHA, PHX, PHY,
 PLP, PLA, PLX, PLY,
 """
+KEY = Shape(8*w, 0, 2*w, 2*w, (255, 0, 100), text="K", z=-1)
+tl.add(Target(KEY), on=KEY)
 instruction_count = 0
 def instruction(ox, oy, name):
     global instruction_count
-    S = Style((0, 0, 0, 0.5), (255, 255, 255), 0.1)
+    SI = Style((0, 0, 0, 0.5), (255, 255, 255), 0.1)
+    SK = Style((255, 0, 0, 0.5), (255, 255, 255), 0.1)
     i = instruction_count
     x = i//8
     y = i%8
-    ins = Shape(ox+2.5*x*w, oy+y*w, 2.5*w, w, S, text=name, z=Z(N_BITS))
+    ins = Shape(ox+2.5*x*w, oy+y*w, 2.5*w, w, SI, text=name, z=Z(N_BITS))
+    key = Shape(ox+2.5*x*w, oy+y*w, 2.5*w, w, SK, text=name)
     tl.add(Target(OP_RESET), on=ins)
     tl.add(SlideIn(ins, UP), on=OP_RESET)
     tl.add(Target(ins), on=TARGET_OPC)
     for j, bit in enumerate(OPC):
         if i & 1<<j == 0:
             tl.add(Disappear(ins), on=bit)
+            tl.add(Disappear(REG_A.bits[j][0]), on=key)
+            tl.add(Disappear(REG_A.bits[j][1]), on=key)
+        else:
+            tl.add(Appear(REG_A.bits[j][0]), on=key)
+            tl.add(Appear(REG_A.bits[j][1]), on=key)
+    tl.add(Appear(K), on=key)
+    tl.add(Appear(ZF), on=key)
+    tl.add(Place(KEY), on=key)
     instruction_count += 1
     return ins
 
@@ -469,6 +481,8 @@ def ISA(ox, oy):
     REGS_XY = ((REG_X, "X"), (REG_Y, "Y"))
     REGS_XYA = ((REG_X, "X"), (REG_Y, "Y"), (REG_A, "A"))
     for gate in (*GATES_2, *GATES_3):
+        instruction(ox, oy, "")
+        instruction(ox, oy, "")
         for reg, reg_name in REGS_XY:
             ins = instruction(ox, oy, f"{gate.name} {reg_name}")
             REG_A.is_dest(ins)
@@ -496,10 +510,10 @@ def ISA(ox, oy):
             load(ins, wait=False)
             gate.call(ins, wait=True)
             fin(ins)
-        instruction(ox, oy, "")
-        instruction(ox, oy, "")
 
     for gate, op_name, carry in ((GATES_1[1], "not", False), (GATES_3[0], "inc", True), (GATES_3[2], "dec", True)):
+        instruction(ox, oy, "")
+        instruction(ox, oy, "")
         for reg, reg_name in REGS_XYA:
             ins = instruction(ox, oy, f"{op_name} {reg_name}")
             reg.is_dest(ins)
@@ -520,12 +534,14 @@ def ISA(ox, oy):
             gate.call(ins, wait=True)
             set_carry(ins, carry)
             fin(ins)
-        instruction(ox, oy, "")
-        instruction(ox, oy, "")
 
     mv = GATES_1[0]
     cmp = GATES_3[2]
     test = GATES_2[2]
+    ins = instruction(ox, oy, "KEY")
+    tl.add(Target(KEY), on=ins)
+    fin(ins)
+    instruction(ox, oy, "")
     for src, src_name in REGS_XYA:
         for dst, dst_name in REGS_XYA:
             if src == dst: continue
@@ -534,9 +550,13 @@ def ISA(ox, oy):
             src.is_src_j(ins)
             mv.call(ins)
             fin(ins)
-    instruction(ox, oy, "")
-    instruction(ox, oy, "")
 
+    ins = instruction(ox, oy, "CLC")
+    clr_carry(ins)
+    fin(ins)
+    ins = instruction(ox, oy, "SEC")
+    set_carry(ins)
+    fin(ins)
     for r1, r1_name in REGS_XYA:
         for r2, r2_name in REGS_XYA:
             if r1 == r2: continue
@@ -546,12 +566,6 @@ def ISA(ox, oy):
             clr_carry(ins)
             cmp.call(ins)
             fin(ins)
-    ins = instruction(ox, oy, "CLC")
-    clr_carry(ins)
-    fin(ins)
-    ins = instruction(ox, oy, "SEC")
-    set_carry(ins)
-    fin(ins)
 
     for reg, reg_name in REGS_XYA:
         ins = instruction(ox, oy, f"CP{reg_name} #")
@@ -641,6 +655,35 @@ def ISA(ox, oy):
     branch(ins, BNE)
     jump(ins)
     fin(ins)
+
+    backspace = Shape(ox, oy+8*w, 2.5*w, w, (255, 0, 100), text="⌫")
+    run = Shape(ox+2.5*w, oy+8*w, 2.5*w, w, (255, 0, 100), text="▶")
+    for bit in REG_A.bits:
+        tl.add(Disappear(bit[0]), on=backspace)
+        tl.add(Disappear(bit[0]), on=run)
+        tl.add(Disappear(bit[1]), on=backspace)
+        tl.add(Disappear(bit[1]), on=run)
+    tl.add(Appear(K), on=backspace)
+    tl.add(Disappear(ZF), on=backspace)
+    tl.add(Place(KEY), on=backspace)
+    tl.add(Appear(ZF), on=run)
+    tl.add(Disappear(K), on=run)
+    tl.add(Place(KEY), on=run)
+
+"""
+LDY run
+start:
+    KEY
+    BCS run
+    STA ?Y
+    BNE next
+        dec Y
+        dec Y
+next:
+    inc Y
+    JMP start
+run:
+"""
 
 #====================================================================
 
