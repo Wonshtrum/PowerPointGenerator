@@ -197,11 +197,11 @@ class Byte:
             tl.add(Disappear(self.ip), on=TARGET_IP)
             tl.add(Appear(self.ip), on=target_ip)
             self.target_ip = target_ip
-        Shape(x, y, 3*w, w*N_BITS+w, (230, 230, 255), z=Z(N_BITS+1))
+        bg = Shape(x, y, 3*w, w*N_BITS+w, (230, 230, 255), z=Z(N_BITS+1))
         x += w2
-        reset = Shape(x, y+w*N_BITS+w2, w, w2, (255, 0, 255), z=Z(N_BITS))
+        reset = Shape(x+w, y, w2, w2, (200, 0, 200), z=Z(N_BITS))
         tl.add(Place(reset), on=reset)
-        target_d = Shape(x+w, y, w, w2, (255, 0, 255), z=Z(0, 1, 0))
+        target_d = Shape(x+w+w2, y, w2, w2, (255, 0, 255), z=Z(0, 1, 0))
         tl.add(Place(target_d), on=target_d)
         self.target_d = target_d
         if is_i:
@@ -276,6 +276,10 @@ class Byte:
             if is_j:
                 tl.move(target_j)
             self.bits[i] = (bit_i, bit_j, set_0, set_1)
+        def debug():
+            text = "{:02X}".format(sum(b[1].visible*2**i for (i, b) in enumerate(self.bits)))
+            return Shape(x, y+w*N_BITS, 2*w, w, Style((255, 255, 255), (0, 0, 0), 0.1), text=Text(text, (0, 0, 0)))
+        bg.debug=debug
 
     def is_dest(self, ins, wait=False):
         tl.add(Target(self.target_d), on=ins)
@@ -736,4 +740,4 @@ doc = Document("cpu", [slide])
 #save_to_pptx(doc)
 
 scale = 10/Document.SCALE
-tk_run(slide, Document.WIDTH*scale, Document.HEIGHT*scale, scale, smart_refresh=True, validate_exit=True)
+tk_run(slide, Document.WIDTH*scale, Document.HEIGHT*scale, scale, smart_refresh=True, validate_exit=True, show_sequence=False, show_debug=True)
