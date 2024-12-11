@@ -6,7 +6,7 @@ import tkinter.font
 import sys
 
 class Backend:
-    def __init__(self, context, width, height, scale, smart_refresh, validate_exit, show_sequence, show_debug):
+    def __init__(self, context, width, height, scale, smart_refresh, validate_exit, show_sequence, show_debug, frame_callback):
         self.context = context
         self.width = width
         self.height = height
@@ -15,6 +15,7 @@ class Backend:
         self.validate_exit = validate_exit
         self.show_sequence = show_sequence
         self.show_debug = show_debug
+        self.frame_callback = frame_callback
         self.continuous = False
 
         self.debugs = [shape for shape in context.visible if hasattr(shape, "debug")]
@@ -69,7 +70,8 @@ class Backend:
         s = self.scale
         x, y = event.x/s, event.y/s
         if self.context.click(x, y) == Context.EXIT:
-            self.exit(0)
+            if self.exit():
+                return
         self.draw()
 
     def clicks(self, event):
@@ -83,21 +85,23 @@ class Backend:
             if status == Context.STOP:
                 self.stop()
             elif status == Context.EXIT:
-                self.exit(0)
+                if self.exit():
+                    return
             self.can.update()
         self.draw()
     
     def stop(self, event=None):
         self.continuous = False
 
-    def exit(self, code):
+    def exit(self):
         print(self.context.t)
         self.stop()
         if self.validate_exit:
             ok = tk.messagebox.askokcancel(title="tk_runner", message="Exit now?")
             if not ok:
-                return
-        sys.exit(code)
+                return False
+        self.win.destroy()
+        return True
 
     def draw_shape(self, shape, group_x=0, group_y=0, alpha=1):
         s = self.scale
@@ -125,7 +129,8 @@ class Backend:
         if self.show_debug and not self.continuous:
             for shape in self.debugs:
                 debug = shape.debug()
-                self.draw_shape(debug)
+                if debug is not None:
+                    self.draw_shape(debug)
 
     def clear(self):
         self.can.delete(tk.ALL)
@@ -133,10 +138,12 @@ class Backend:
     def draw(self):
         self.clear()
         self.draw_group((shape for shape in self.context.visible if shape.visible))
+        if self.frame_callback is not None:
+            self.frame_callback(self)
 
-def run(slide, width, height, scale, smart_refresh=False, validate_exit=False, show_sequence=False, show_debug=False):
+def run(slide, width, height, scale, smart_refresh=False, validate_exit=False, show_sequence=False, show_debug=False, frame_callback=None):
     context = Context(slide)
-    backend = Backend(context, width, height, scale, smart_refresh, validate_exit, show_sequence, show_debug)
+    backend = Backend(context, width, height, scale, smart_refresh, validate_exit, show_sequence, show_debug, frame_callback)
 
     backend.init()
 

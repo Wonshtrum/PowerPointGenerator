@@ -47,6 +47,8 @@ class Context:
 
     def apply(self, animation):
         print(animation.target)
+        if animation.target is None:
+            sys.exit(3)
         shape = self.shapes[animation.target]
         if animation.preset == Animation.ENTR:
             shape.visible = True
